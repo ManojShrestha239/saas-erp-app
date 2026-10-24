@@ -8,7 +8,7 @@
 - [x] Initialize repo structure (`backend/`, `frontend/`, `docs/`).
 - [x] Docker environment: Nginx, PHP-FPM, Composer, PostgreSQL, PgAdmin, Redis, Supervisor, Node.
 - [x] Configure Laravel 13 modular monolith: PSR-4 for `Modules\` and `Shared\`, module service provider loading, module route mounting.
-- [ ] Shared kernel: `ApiResponse`, `ApiException` + `ApiExceptionRenderer`, `EnsureJsonRequest`, `HttpStatus`.
+- [x] Shared kernel: `ApiResponse`, `ApiException` + `ApiExceptionRenderer`, `EnsureJsonRequest`, `HttpStatus`.
 - [ ] Two DB connections (`central`, `tenant`) + `UsesTenantConnection` trait + `TenantContext`.
 - [ ] Central schema: `tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`.
 - [ ] `IdentifyTenant` middleware: subdomain → tenant → runtime connection switch (cached, rejects unknown/suspended).
