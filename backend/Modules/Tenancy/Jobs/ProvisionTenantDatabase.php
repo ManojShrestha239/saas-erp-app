@@ -125,10 +125,12 @@ final class ProvisionTenantDatabase implements ShouldQueue
         // Safe: database_name is validated against [a-z0-9_-] and safely quoted
         $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
 
-        $exists = (int) $pdo->query(
+        $stmt = $pdo->query(
             'SELECT COUNT(*) FROM pg_database WHERE datname = '.
             $pdo->quote($databaseName)
-        )->fetchColumn();
+        );
+
+        $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
 
         if ($exists === 0) {
             $pdo->exec("CREATE DATABASE {$quotedName}");
