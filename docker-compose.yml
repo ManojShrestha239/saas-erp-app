@@ -1,0 +1,93 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: nexuserp-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - nexuserp-network
+    depends_on:
+      - postgres
+      - redis
+
+  nginx:
+    image: nginx:alpine
+    container_name: nexuserp-nginx
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:80"
+    volumes:
+      - ./backend:/var/www/html:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - nexuserp-network
+    depends_on:
+      - app
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: nexuserp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_CENTRAL_DATABASE:-pgsql_central}
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    ports:
+      - "${FORWARD_DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexuserp-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexuserp-redis
+    restart: unless-stopped
+    ports:
+      - "${FORWARD_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - nexuserp-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nexuserp-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    networks:
+      - nexuserp-network
+    depends_on:
+      - postgres
+
+  node:
+    image: node:22-alpine
+    container_name: nexuserp-node
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./backend:/var/www/html
+    ports:
+      - "5173:5173"
+    networks:
+      - nexuserp-network
+    command: sh -c "npm install && npm run dev -- --host"
+
+networks:
+  nexuserp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
