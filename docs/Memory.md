@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Initialized Docker environment (Nginx, PHP 8.4-FPM, PostgreSQL 17, Redis 7, PgAdmin, Node) and configured Laravel 13 modular monolith baseline with `Modules\` and `Shared\` namespaces.
-- **Current Focus:** Build Shared HTTP kernel (`ApiResponse`, `ApiException`, `ApiExceptionRenderer`, `EnsureJsonRequest`, `HttpStatus`) and Tenancy foundations (`UsesTenantConnection`, `TenantContext`).
-- **Working branch:** `feat/foundation-docker-laravel`
+- **Last Completed Task:** Built Shared kernel (`HttpStatus`, `ApiResponse`, `ApiException`, `ApiExceptionRenderer`, `EnsureJsonRequest`) with Pest feature tests covering envelope responses, validation, domain errors, and 406/415 negotiation cases.
+- **Current Focus:** Implement Tenancy foundations (`UsesTenantConnection` trait, `TenantContext`, `TenantManager`).
+- **Working branch:** `feat/shared-kernel-api-responses`
 
 ## Architectural Decisions (Decision Log)
 
@@ -26,6 +26,7 @@
 | 4   | Two named connections: `central` and `tenant`; no reliance on default connection                  | Prevents cross-tenant leakage              |
 | 5   | Append-only stock movements + cached stock levels, updated in the same transaction                | Auditability + read speed                  |
 | 6   | Automated module discovery via `SharedServiceProvider` and `ModuleServiceProvider` base class     | Zero-config module registration            |
+| 7   | Central exception rendering via `ApiExceptionRenderer` in `bootstrap/app.php` and strict envelope | Uniform API contract without ad hoc errors |
 
 ## Conventions Locked In
 
@@ -46,24 +47,25 @@
 
 ## Next Steps
 
-1. Implement Shared kernel (`ApiResponse`, `ApiException` + `ApiExceptionRenderer`, `EnsureJsonRequest`, `HttpStatus`).
-2. Implement Tenancy connections and context (`UsesTenantConnection` trait, `TenantContext`, `TenantManager`).
-3. Create central schema (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
-4. Implement `IdentifyTenant` middleware and tenant connection switching tests.
+1. Implement Tenancy connections and context (`UsesTenantConnection` trait, `TenantContext`, `TenantManager`).
+2. Create central schema (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
+3. Implement `IdentifyTenant` middleware and tenant connection switching tests.
+4. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
 
 ## Key Files Touched (latest)
 
-- `docker-compose.yml`
-- `docker/php/Dockerfile`
-- `docker/nginx/default.conf`
-- `backend/composer.json`
-- `backend/bootstrap/providers.php`
-- `backend/config/database.php`
-- `backend/.env.example`
-- `backend/.env`
-- `backend/Shared/Providers/ModuleServiceProvider.php`
-- `backend/Shared/Providers/SharedServiceProvider.php`
+- `backend/Shared/Utils/HttpStatus.php`
+- `backend/Shared/Responses/ApiResponse.php`
+- `backend/Shared/Exceptions/ApiException.php`
+- `backend/Shared/Exceptions/ApiExceptionRenderer.php`
+- `backend/Shared/Http/Middleware/EnsureJsonRequest.php`
+- `backend/bootstrap/app.php`
+- `backend/routes/api.php`
+- `backend/tests/Pest.php`
+- `backend/tests/Feature/Shared/ApiResponseTest.php`
+- `backend/tests/Feature/Shared/EnsureJsonRequestTest.php`
 
 ## Session Log (newest first)
 
+- `2026-10-24`: Shared kernel: Implemented `HttpStatus` backed enum, `ApiResponse` strict envelope, `ApiException` base, `ApiExceptionRenderer` registered in `bootstrap/app.php`, and `EnsureJsonRequest` middleware. Added 15 Pest feature tests (17 total tests passed, 47 assertions) covering success, validation, domain error, 406, and 415 scenarios. Pint passed.
 - `2026-10-24`: Scaffolding, Docker & Pest setup: Created Docker Compose with PHP 8.4-FPM, Nginx, PostgreSQL 17, Redis 7, PgAdmin, and Node 22. Configured Laravel 13 modular monolith autoloading for `Modules\` and `Shared\`. Added `central` and `tenant` database configurations. All containers healthy; Pint passed; installed `pestphp/pest` (^4.7) and `pestphp/pest-plugin-laravel` (^4.1); ran Pest test suite (2 tests, 2 passed, 2 assertions).
