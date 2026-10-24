@@ -6,6 +6,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Shared\Exceptions\ApiExceptionRenderer;
 use Shared\Http\Middleware\EnsureJsonRequest;
+use Shared\Http\Middleware\IdentifyTenant;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -21,6 +22,8 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'ensure.json' => EnsureJsonRequest::class,
+            'tenant' => IdentifyTenant::class,
+            'identify.tenant' => IdentifyTenant::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Created central schema migrations in `backend/database/migrations/central/` (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`) and verified via 15 Pest feature tests (38 total passed, 111 assertions).
-- **Current Focus:** Implement `IdentifyTenant` middleware (subdomain → tenant → runtime connection switch, cached, rejects unknown/suspended).
-- **Working branch:** `feat/central-schema`
+- **Last Completed Task:** Implemented `IdentifyTenant` middleware with subdomain resolution, central lookup, Redis caching (60s TTL), status gating (403 `TENANT_SUSPENDED` / `TENANT_UNAVAILABLE`), `TenantManager::switchTo()`, and post-request context resetting via `terminate()`. Verified with 11 Pest tests (49 total passed, 152 assertions).
+- **Current Focus:** Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/CoA/settings).
+- **Working branch:** `feat/identify-tenant-middleware`
 
 ## Architectural Decisions (Decision Log)
 
@@ -28,6 +28,7 @@
 | 6   | Automated module discovery via `SharedServiceProvider` and `ModuleServiceProvider` base class     | Zero-config module registration            |
 | 7   | Central exception rendering via `ApiExceptionRenderer` in `bootstrap/app.php` and strict envelope | Uniform API contract without ad hoc errors |
 | 8   | Tenants use ULID IDs and no soft deletes                                                          | Time-ordered B-tree indexing, URL-safe identifiers (security comes from authorization); lifecycle managed via `status` without unique constraint collisions |
+| 9   | `IdentifyTenant` registered as alias only; resets context in `terminate()`                        | Explicit per-route tenancy assignment without leaking state across persistent cycles |
 
 ## Conventions Locked In
 
@@ -48,20 +49,17 @@
 
 ## Next Steps
 
-1. Implement `IdentifyTenant` middleware and tenant connection switching tests.
-2. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
-3. Add `tenants:migrate` command and tenant-isolation feature tests.
+1. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
+2. Add `tenants:migrate` command and tenant-isolation feature tests.
+3. Frontend scaffold (Inertia + React 19 + TypeScript + Tailwind + shadcn/ui).
 
 ## Key Files Touched (latest)
 
-- `backend/database/migrations/central/2026_10_24_000001_create_tenants_table.php`
-- `backend/database/migrations/central/2026_10_24_000002_create_domains_table.php`
-- `backend/database/migrations/central/2026_10_24_000003_create_packages_table.php`
-- `backend/database/migrations/central/2026_10_24_000004_create_subscriptions_table.php`
-- `backend/database/migrations/central/2026_10_24_000005_create_super_admins_table.php`
-- `backend/database/migrations/central/2026_10_24_000006_create_global_audit_logs_table.php`
-- `backend/tests/Feature/Central/CentralSchemaTest.php`
+- `backend/Shared/Http/Middleware/IdentifyTenant.php`
+- `backend/bootstrap/app.php`
+- `backend/tests/Feature/Shared/IdentifyTenantTest.php`
 
 ## Session Log (newest first)
 
+- `2026-10-24`: IdentifyTenant middleware: Created `Shared/Http/Middleware/IdentifyTenant.php` resolving subdomains from request host against central `tenants`/`domains`. Cached in Redis (60s TTL, `tenant:prefixed` key with invalidation). Enforces status rules (404 via `ApiException` for API / Laravel 404 for web, 403 `TENANT_SUSPENDED`, 403 `TENANT_UNAVAILABLE`). Calls `TenantManager::switchTo()` on valid tenant, resets context in `terminate()`. Registered as alias in `bootstrap/app.php`. Added 11 Pest tests (49 total passed, 152 assertions). Pint passed.
 - `2026-10-24`: Central schema: Created migrations in `backend/database/migrations/central/` for `tenants` (ULID id, no soft deletes), `domains` (cascade delete FK), `packages` (BIGINT `price_cents`, JSONB `features`), `subscriptions`, `super_admins`, and `global_audit_logs` (append-only, no `updated_at`). All FK and status columns indexed. Added 15 Pest tests (38 total passed, 111 assertions) verifying tables, uniqueness constraints, cascade deletion, and BIGINT integrity. Pint passed.
