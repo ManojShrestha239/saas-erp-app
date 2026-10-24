@@ -10,7 +10,7 @@
 - [x] Configure Laravel 13 modular monolith: PSR-4 for `Modules\` and `Shared\`, module service provider loading, module route mounting.
 - [x] Shared kernel: `ApiResponse`, `ApiException` + `ApiExceptionRenderer`, `EnsureJsonRequest`, `HttpStatus`.
 - [x] Two DB connections (`central`, `tenant`) + `UsesTenantConnection` trait + `TenantContext`.
-- [ ] Central schema: `tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`.
+- [x] Central schema: `tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`.
 - [ ] `IdentifyTenant` middleware: subdomain → tenant → runtime connection switch (cached, rejects unknown/suspended).
 - [ ] Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/CoA/settings).
 - [ ] `tenants:migrate` command to run tenant migrations for all tenants.
