@@ -12,10 +12,10 @@
 - [x] Two DB connections (`central`, `tenant`) + `UsesTenantConnection` trait + `TenantContext`.
 - [x] Central schema: `tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`.
 - [x] `IdentifyTenant` middleware: subdomain → tenant → runtime connection switch (cached, rejects unknown/suspended).
-- [ ] Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/CoA/settings).
+- [ ] Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/settings; CoA seeder deferred to Phase 5).
 - [ ] `tenants:migrate` command to run tenant migrations for all tenants.
 - [ ] Frontend scaffold: Inertia + React 19 + TS strict + Tailwind + shadcn/ui, `apiClient`, `ApiError`, app layouts.
-- [ ] Tooling: Pest + Pest Arch, Larastan, Pint, ESLint, Vitest, Playwright, CI script.
+- [ ] Tooling: Pest + Pest Arch, Larastan, Pint, CI script (ESLint, Vitest, Playwright deferred to frontend scaffold).
 - **Exit criteria:** two tenants on two subdomains see isolated data; provisioning is retry-safe; arch + isolation tests pass.
 
 ## Phase 2: Authentication & User Provisioning

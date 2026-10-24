@@ -19,7 +19,7 @@ test('named connections central and tenant exist in database configuration', fun
         ->and(config('database.default'))->toBe('central')
         ->and($connections['central']['driver'])->toBe('pgsql')
         ->and($connections['tenant']['driver'])->toBe('pgsql')
-        ->and($connections['central']['database'])->toBe('pgsql_central')
+        ->and($connections['central']['database'])->toBe(env('DB_CENTRAL_DATABASE', env('DB_DATABASE', 'pgsql_central')))
         ->and($connections['tenant']['database'])->toBeNull();
 });
 

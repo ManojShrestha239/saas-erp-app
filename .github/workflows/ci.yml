@@ -1,0 +1,90 @@
+name: CI Quality Gates
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+jobs:
+  backend-quality-gates:
+    name: Backend CI (Pint, Larastan, Pest)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pgsql_central
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_pgsql, pgsql, redis, bcmath
+          coverage: none
+
+      - name: Create testing database in PostgreSQL
+        run: PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE pgsql_testing;"
+
+      - name: Copy .env
+        run: cp .env.example .env
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Generate App Key
+        run: php artisan key:generate
+
+      - name: Run Backend CI (Pint, Larastan level 8, Pest)
+        run: composer ci
+
+  frontend-quality-gates:
+    name: Frontend CI (ESLint, TypeScript, Vitest)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install NPM dependencies
+        run: npm ci
+
+      - name: Run Frontend CI
+        run: npm run ci

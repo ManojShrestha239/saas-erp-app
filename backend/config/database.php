@@ -104,7 +104,7 @@ return [
             'url' => env('DB_CENTRAL_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '5432'),
-            'database' => env('DB_CENTRAL_DATABASE', 'pgsql_central'),
+            'database' => env('DB_CENTRAL_DATABASE', env('DB_DATABASE', 'pgsql_central')),
             'username' => env('DB_USERNAME', 'postgres'),
             'password' => env('DB_PASSWORD', 'postgres'),
             'charset' => env('DB_CHARSET', 'utf8'),

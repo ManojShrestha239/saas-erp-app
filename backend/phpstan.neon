@@ -1,0 +1,26 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - Modules
+        - Shared
+        - config
+        - routes
+
+    # Level 8 is the required strictness level in Larastan
+    level: 8
+
+    ignoreErrors:
+        # UsesTenantConnection is an architectural trait provided by Shared kernel for tenant models to use
+        - identifier: trait.unused
+          path: Shared/Tenancy/UsesTenantConnection.php
+
+        # ApiException uses static factory methods (e.g. notFound) and is designed to be subclassed by domain exceptions (Rules.md §6)
+        - identifier: new.static
+          path: Shared/Exceptions/ApiException.php
+
+        # Host header string parsing handles missing host or malformed port offsets safely
+        - identifier: nullCoalesce.offset
+          path: Shared/Http/Middleware/IdentifyTenant.php
