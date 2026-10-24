@@ -12,7 +12,7 @@
 - [x] Two DB connections (`central`, `tenant`) + `UsesTenantConnection` trait + `TenantContext`.
 - [x] Central schema: `tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`.
 - [x] `IdentifyTenant` middleware: subdomain → tenant → runtime connection switch (cached, rejects unknown/suspended).
-- [ ] Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/CoA/settings).
+- [ ] Tenant registration controller + `ProvisionTenantDatabase` job (create DB, migrate, seed roles/settings; CoA seeder deferred to Phase 5).
 - [ ] `tenants:migrate` command to run tenant migrations for all tenants.
 - [ ] Frontend scaffold: Inertia + React 19 + TS strict + Tailwind + shadcn/ui, `apiClient`, `ApiError`, app layouts.
 - [ ] Tooling: Pest + Pest Arch, Larastan, Pint, ESLint, Vitest, Playwright, CI script.
