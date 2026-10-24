@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Configured named `central` and `tenant` database connections in `config/database.php`, built `UsesTenantConnection` trait, `TenantContext` readonly singleton, and `TenantManager` with purge/reconnect switching. Verified with 5 Pest tests (23 total passed, 84 assertions).
-- **Current Focus:** Central schema migrations (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
-- **Working branch:** `feat/tenancy-db-connections`
+- **Last Completed Task:** Created central schema migrations in `backend/database/migrations/central/` (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`) and verified via 15 Pest feature tests (38 total passed, 111 assertions).
+- **Current Focus:** Implement `IdentifyTenant` middleware (subdomain → tenant → runtime connection switch, cached, rejects unknown/suspended).
+- **Working branch:** `feat/central-schema`
 
 ## Architectural Decisions (Decision Log)
 
@@ -27,6 +27,7 @@
 | 5   | Append-only stock movements + cached stock levels, updated in the same transaction                | Auditability + read speed                  |
 | 6   | Automated module discovery via `SharedServiceProvider` and `ModuleServiceProvider` base class     | Zero-config module registration            |
 | 7   | Central exception rendering via `ApiExceptionRenderer` in `bootstrap/app.php` and strict envelope | Uniform API contract without ad hoc errors |
+| 8   | Tenants use ULID IDs and no soft deletes                                                          | Time-ordered B-tree indexing, URL-safe identifiers (security comes from authorization); lifecycle managed via `status` without unique constraint collisions |
 
 ## Conventions Locked In
 
@@ -47,23 +48,20 @@
 
 ## Next Steps
 
-1. Create central schema (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
-2. Implement `IdentifyTenant` middleware and tenant connection switching tests.
-3. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
-4. Add `tenants:migrate` command and tenant-isolation feature tests.
+1. Implement `IdentifyTenant` middleware and tenant connection switching tests.
+2. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
+3. Add `tenants:migrate` command and tenant-isolation feature tests.
 
 ## Key Files Touched (latest)
 
-- `backend/config/database.php`
-- `backend/.env.example`
-- `backend/.env`
-- `backend/phpunit.xml`
-- `backend/Shared/Tenancy/UsesTenantConnection.php`
-- `backend/Shared/Tenancy/TenantContext.php`
-- `backend/Shared/Tenancy/TenantManager.php`
-- `backend/Shared/Providers/SharedServiceProvider.php`
-- `backend/tests/Feature/Shared/TenancyDbConnectionsTest.php`
+- `backend/database/migrations/central/2026_10_24_000001_create_tenants_table.php`
+- `backend/database/migrations/central/2026_10_24_000002_create_domains_table.php`
+- `backend/database/migrations/central/2026_10_24_000003_create_packages_table.php`
+- `backend/database/migrations/central/2026_10_24_000004_create_subscriptions_table.php`
+- `backend/database/migrations/central/2026_10_24_000005_create_super_admins_table.php`
+- `backend/database/migrations/central/2026_10_24_000006_create_global_audit_logs_table.php`
+- `backend/tests/Feature/Central/CentralSchemaTest.php`
 
 ## Session Log (newest first)
 
-- `2026-10-24`: Tenancy DB connections & context: Configured central (pgsql_central) and tenant (dynamic) named PostgreSQL connections. Implemented `UsesTenantConnection` trait, `TenantContext` readonly singleton value object, and `TenantManager` with purge/reconnect logic. Added 5 Pest tests (23 total passed, 84 assertions) verifying connection existence, switching, model connection reporting, and isolation between switches. Pint passed.
+- `2026-10-24`: Central schema: Created migrations in `backend/database/migrations/central/` for `tenants` (ULID id, no soft deletes), `domains` (cascade delete FK), `packages` (BIGINT `price_cents`, JSONB `features`), `subscriptions`, `super_admins`, and `global_audit_logs` (append-only, no `updated_at`). All FK and status columns indexed. Added 15 Pest tests (38 total passed, 111 assertions) verifying tables, uniqueness constraints, cascade deletion, and BIGINT integrity. Pint passed.
