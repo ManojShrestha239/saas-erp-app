@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Built Shared kernel (`HttpStatus`, `ApiResponse`, `ApiException`, `ApiExceptionRenderer`, `EnsureJsonRequest`) with Pest feature tests covering envelope responses, validation, domain errors, and 406/415 negotiation cases.
-- **Current Focus:** Implement Tenancy foundations (`UsesTenantConnection` trait, `TenantContext`, `TenantManager`).
-- **Working branch:** `feat/shared-kernel-api-responses`
+- **Last Completed Task:** Configured named `central` and `tenant` database connections in `config/database.php`, built `UsesTenantConnection` trait, `TenantContext` readonly singleton, and `TenantManager` with purge/reconnect switching. Verified with 5 Pest tests (23 total passed, 84 assertions).
+- **Current Focus:** Central schema migrations (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
+- **Working branch:** `feat/tenancy-db-connections`
 
 ## Architectural Decisions (Decision Log)
 
@@ -47,25 +47,23 @@
 
 ## Next Steps
 
-1. Implement Tenancy connections and context (`UsesTenantConnection` trait, `TenantContext`, `TenantManager`).
-2. Create central schema (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
-3. Implement `IdentifyTenant` middleware and tenant connection switching tests.
-4. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
+1. Create central schema (`tenants`, `domains`, `packages`, `subscriptions`, `super_admins`, `global_audit_logs`).
+2. Implement `IdentifyTenant` middleware and tenant connection switching tests.
+3. Build Tenant Registration Controller and automated database creator job (`ProvisionTenantDatabase`).
+4. Add `tenants:migrate` command and tenant-isolation feature tests.
 
 ## Key Files Touched (latest)
 
-- `backend/Shared/Utils/HttpStatus.php`
-- `backend/Shared/Responses/ApiResponse.php`
-- `backend/Shared/Exceptions/ApiException.php`
-- `backend/Shared/Exceptions/ApiExceptionRenderer.php`
-- `backend/Shared/Http/Middleware/EnsureJsonRequest.php`
-- `backend/bootstrap/app.php`
-- `backend/routes/api.php`
-- `backend/tests/Pest.php`
-- `backend/tests/Feature/Shared/ApiResponseTest.php`
-- `backend/tests/Feature/Shared/EnsureJsonRequestTest.php`
+- `backend/config/database.php`
+- `backend/.env.example`
+- `backend/.env`
+- `backend/phpunit.xml`
+- `backend/Shared/Tenancy/UsesTenantConnection.php`
+- `backend/Shared/Tenancy/TenantContext.php`
+- `backend/Shared/Tenancy/TenantManager.php`
+- `backend/Shared/Providers/SharedServiceProvider.php`
+- `backend/tests/Feature/Shared/TenancyDbConnectionsTest.php`
 
 ## Session Log (newest first)
 
-- `2026-10-24`: Shared kernel: Implemented `HttpStatus` backed enum, `ApiResponse` strict envelope, `ApiException` base, `ApiExceptionRenderer` registered in `bootstrap/app.php`, and `EnsureJsonRequest` middleware. Added 15 Pest feature tests (17 total tests passed, 47 assertions) covering success, validation, domain error, 406, and 415 scenarios. Pint passed.
-- `2026-10-24`: Scaffolding, Docker & Pest setup: Created Docker Compose with PHP 8.4-FPM, Nginx, PostgreSQL 17, Redis 7, PgAdmin, and Node 22. Configured Laravel 13 modular monolith autoloading for `Modules\` and `Shared\`. Added `central` and `tenant` database configurations. All containers healthy; Pint passed; installed `pestphp/pest` (^4.7) and `pestphp/pest-plugin-laravel` (^4.1); ran Pest test suite (2 tests, 2 passed, 2 assertions).
+- `2026-10-24`: Tenancy DB connections & context: Configured central (pgsql_central) and tenant (dynamic) named PostgreSQL connections. Implemented `UsesTenantConnection` trait, `TenantContext` readonly singleton value object, and `TenantManager` with purge/reconnect logic. Added 5 Pest tests (23 total passed, 84 assertions) verifying connection existence, switching, model connection reporting, and isolation between switches. Pint passed.
