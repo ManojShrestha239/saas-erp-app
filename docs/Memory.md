@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Merged `feat/tenant-provisioning-job` and `chore/tooling-quality-gates` into `develop`. Configured isolated `pgsql_testing` database for tests via `phpunit.xml` and `config/database.php`; installed Larastan v3.13 / PHPStan 2.3 at level 8 (0 errors); created Pest Arch tests (strict types, no `DB::` in controllers, module model encapsulation, no float in money classes); added dedicated `DatabaseIsolationTest`; verified tenant provisioning pipeline with idempotent `ProvisionTenantDatabase` job, rate limiting, and retry safety. `composer ci` fully green: 65 tests passed (221 assertions).
-- **Current Focus:** `tenants:migrate` command to run tenant migrations for all tenants.
-- **Working branch:** `develop`
+- **Last Completed Task:** `tenants:migrate` command (`Modules/Tenancy/Commands/TenantsMigrateCommand.php`) — iterates active tenants via `TenantManager::switchTo()`, runs module tenant migrations with `--force`, skips inactive/suspended/provisioning tenants with reporting, collects failures and exits non-zero if any fail, rejects `--fresh`, accepts `--tenant=<slug>`, verifies tenant DB exists before migrating. 6 Pest tests added. `composer ci` passed with 71 tests (260 assertions).
+- **Current Focus:** Frontend scaffold (Inertia + React 19 + TypeScript strict + Tailwind + shadcn/ui).
+- **Working branch:** `feat/tenants-migrate-command`
 
 ## Architectural Decisions (Decision Log)
 
@@ -53,23 +53,18 @@
 
 ## Next Steps
 
-1. Add `tenants:migrate` command to run tenant migrations for all tenants.
-2. Frontend scaffold (Inertia + React 19 + TypeScript + Tailwind + shadcn/ui).
-3. Phase 1 exit criteria check: two isolated tenants, provisioning retry-safe.
+1. Frontend scaffold (Inertia + React 19 + TypeScript + Tailwind + shadcn/ui).
+2. Phase 1 exit criteria check: two isolated tenants, provisioning retry-safe.
 
 ## Key Files Touched (latest)
 
-- `backend/phpunit.xml`
-- `backend/config/database.php`
-- `backend/phpstan.neon`
-- `backend/composer.json`
-- `backend/package.json`
-- `backend/scripts/ci.js`
-- `backend/tests/Arch/ArchTest.php`
-- `.github/workflows/ci.yml`
-- `scripts/ci.sh`
+- `backend/Modules/Tenancy/Commands/TenantsMigrateCommand.php`
+- `backend/Modules/Tenancy/Providers/TenancyServiceProvider.php`
+- `backend/tests/Feature/Tenancy/TenantsMigrateCommandTest.php`
 
 ## Session Log (newest first)
+
+- `2026-10-25`: `tenants:migrate` command: Created `php artisan tenants:migrate` running module tenant migrations (`Modules/*/Database/Migrations`) against active tenants via `TenantManager::switchTo()`. Skips inactive tenants (`suspended`, `provisioning`, `provisioning_failed`) with console output. Non-zero exit on failure while continuing to remaining tenants. Supports `--tenant=<slug>`, disables `--fresh`, requires `--force` in production. Added 6 Pest tests covering multi-tenant migration, skipping, error resilience, and slug filtering. `composer ci` passed with 71 tests (260 assertions). Ticked Phase 1 item.
 
 - `2026-10-25`: Merged `feat/tenant-provisioning-job` and `chore/tooling-quality-gates` into `develop`. Verified tenant provisioning pipeline and database isolation via sentinel-row experiment and dedicated `DatabaseIsolationTest`. `composer ci` passed completely with 65 tests (221 assertions), 0 Pint issues, 0 PHPStan errors. Ticked backend tooling and tenant provisioning items in `docs/Phases.md`.
 - `2026-10-24`: Tooling & Quality Gates: Separated testing database via `phpunit.xml` (`DB_DATABASE=pgsql_testing` / `DB_CENTRAL_DATABASE=pgsql_testing`) ensuring zero contamination of development database. Installed Larastan v3.13 / PHPStan 2.3 at level 8 (0 errors). Added Pest Arch tests (strict types, no `DB::` in controllers, module model encapsulation, no float in money classes). Added `composer ci` script (Pint --test, Larastan level 8, Pest 64 tests). Added frontend `npm run ci` script (gracefully reports skipped uninstalled tools). Added GitHub Actions workflow (`.github/workflows/ci.yml`) and local runner (`./scripts/ci.sh`). Ticked Phase 1 tooling item.
