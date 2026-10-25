@@ -76,9 +76,9 @@ services:
     image: node:22-alpine
     container_name: nexuserp-node
     restart: unless-stopped
-    working_dir: /var/www/html
+    working_dir: /var/www/frontend
     volumes:
-      - ./backend:/var/www/html
+      - ./frontend:/var/www/frontend
     ports:
       - "5173:5173"
     networks:

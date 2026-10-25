@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #F5F0E9;
+  --foreground: #112258;
+  --card: #FFFFFF;
+  --card-foreground: #112258;
+  --muted: #EFE9DF;
+  --muted-foreground: #4B5B78;
+  --border: #325070;
+  --input: #325070;
+  --ring: #325070;
+  --primary: #E0C58F;
+  --primary-foreground: #112258;
+  --secondary: #112258;
+  --secondary-foreground: #F5F0E9;
+  --destructive: #991B1B;
+  --destructive-foreground: #FFFFFF;
+  --success: #1E5128;
+  --success-bg: #E8F5E9;
+  --warning: #B45309;
+  --warning-bg: #FEF3C7;
+  --danger-bg: #FEE2E2;
+  --sidebar: #112258;
+  --sidebar-foreground: #F5F0E9;
+  --radius: 0.5rem;
+}
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger-bg: var(--danger-bg);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
