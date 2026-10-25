@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** `tenants:migrate` command (`Modules/Tenancy/Commands/TenantsMigrateCommand.php`) — iterates active tenants via `TenantManager::switchTo()`, runs module tenant migrations with `--force`, skips inactive/suspended/provisioning tenants with reporting, collects failures and exits non-zero if any fail, rejects `--fresh`, accepts `--tenant=<slug>`, verifies tenant DB exists before migrating. 6 Pest tests added. `composer ci` passed with 71 tests (260 assertions).
-- **Current Focus:** Frontend scaffold (Inertia + React 19 + TypeScript strict + Tailwind + shadcn/ui).
-- **Working branch:** `feat/tenants-migrate-command`
+- **Last Completed Task:** Frontend scaffold (Inertia + React 19 + TypeScript strict + Tailwind + shadcn/ui) — created Architecture §4 tree (`components/ui/`, `features/`, `layouts/`, `shared/`), single `app.css` declaring Design.md §2 light mode color tokens mapped to Tailwind `@theme`, typed `apiClient` parsing Architecture §3 envelope, `ApiError` class, `AppLayout` (256px sidebar, topbar, 1440px container), `AuthLayout`, `AdminLayout`, `PlaceholderDashboard`, and frontend tooling (`npm run ci` running ESLint, `tsc --noEmit`, and Vitest). Playwright deferred to Phase 7. 7 Vitest tests passing.
+- **Current Focus:** Phase 1 exit criteria check (two isolated tenants, provisioning retry-safe).
+- **Working branch:** `feat/frontend-scaffold`
 
 ## Architectural Decisions (Decision Log)
 
@@ -53,16 +53,34 @@
 
 ## Next Steps
 
-1. Frontend scaffold (Inertia + React 19 + TypeScript + Tailwind + shadcn/ui).
-2. Phase 1 exit criteria check: two isolated tenants, provisioning retry-safe.
+1. Phase 1 exit criteria check: two isolated tenants, provisioning retry-safe.
+2. Phase 2: Authentication & User Provisioning.
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Tenancy/Commands/TenantsMigrateCommand.php`
-- `backend/Modules/Tenancy/Providers/TenancyServiceProvider.php`
-- `backend/tests/Feature/Tenancy/TenantsMigrateCommandTest.php`
+- `docker-compose.yml`
+- `.github/workflows/ci.yml`
+- `frontend/package.json`
+- `frontend/tsconfig.json`
+- `frontend/vite.config.ts`
+- `frontend/eslint.config.js`
+- `frontend/src/app.css`
+- `frontend/src/shared/types/apiResponse.ts`
+- `frontend/src/shared/api/ApiError.ts`
+- `frontend/src/shared/api/apiClient.ts`
+- `frontend/src/components/ui/button.tsx`
+- `frontend/src/components/ui/card.tsx`
+- `frontend/src/components/ui/badge.tsx`
+- `frontend/src/layouts/AppLayout.tsx`
+- `frontend/src/layouts/AuthLayout.tsx`
+- `frontend/src/layouts/AdminLayout.tsx`
+- `frontend/src/features/dashboard/pages/PlaceholderDashboard.tsx`
+- `frontend/src/shared/api/__tests__/apiClient.test.ts`
+- `frontend/src/features/dashboard/pages/__tests__/PlaceholderDashboard.test.tsx`
 
 ## Session Log (newest first)
+
+- `2026-10-25`: Frontend scaffold & tooling: Set up Inertia with React 19 and TypeScript (`strict: true`, no `any`, no `@ts-ignore`) in `frontend/`. Mapped Design.md §2 light mode color tokens into `app.css` via Tailwind `@theme`. Created Architecture §4 structure (`components/ui/`, `features/`, `layouts/`, `shared/`). Implemented typed `apiClient` with envelope parsing and `ApiError` propagation (code, message, errors, status, field helpers). Built `AppLayout` (256px royal blue sidebar, topbar, 1440px container), `AuthLayout`, `AdminLayout`, and `PlaceholderDashboard`. Wired `npm run ci` to ESLint, `tsc --noEmit`, and Vitest. Added 6 unit tests for `apiClient`/`ApiError` and 1 integration test for `PlaceholderDashboard` (all 7 passed). Playwright deferred to Phase 7 unticked. Zero backend files modified.
 
 - `2026-10-25`: `tenants:migrate` command: Created `php artisan tenants:migrate` running module tenant migrations (`Modules/*/Database/Migrations`) against active tenants via `TenantManager::switchTo()`. Skips inactive tenants (`suspended`, `provisioning`, `provisioning_failed`) with console output. Non-zero exit on failure while continuing to remaining tenants. Supports `--tenant=<slug>`, disables `--fresh`, requires `--force` in production. Added 6 Pest tests covering multi-tenant migration, skipping, error resilience, and slug filtering. `composer ci` passed with 71 tests (260 assertions). Ticked Phase 1 item.
 
