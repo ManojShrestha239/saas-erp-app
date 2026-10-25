@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Frontend scaffold (Inertia + React 19 + TypeScript strict + Tailwind + shadcn/ui) — created Architecture §4 tree (`components/ui/`, `features/`, `layouts/`, `shared/`), single `app.css` declaring Design.md §2 light mode color tokens mapped to Tailwind `@theme`, typed `apiClient` parsing Architecture §3 envelope, `ApiError` class, `AppLayout` (256px sidebar, topbar, 1440px container), `AuthLayout`, `AdminLayout`, `PlaceholderDashboard`, and frontend tooling (`npm run ci` running ESLint, `tsc --noEmit`, and Vitest). Playwright deferred to Phase 7. 7 Vitest tests passing.
-- **Current Focus:** Phase 1 exit criteria check (two isolated tenants, provisioning retry-safe).
-- **Working branch:** `feat/frontend-scaffold`
+- **Last Completed Task:** Phase 1 Exit Criterion: Two tenants on two subdomains see isolated data (`tests/Feature/Tenancy/Phase1ExitIsolationTest.php`) — provisioned alpha and beta via `ProvisionTenantDatabase::dispatchSync`, registered test-only route behind `identify.tenant` returning slug, settings_count, users_count, marker, and users. Proved data isolation: alpha marker only visible via alpha host, beta marker only visible via beta host, alpha owner not visible from beta host and vice versa. Suspending beta returns 403 `TENANT_SUSPENDED` while alpha continues returning its own data. `TenantContext::get()` is null after every request. All 72 Pest tests pass (312 assertions). Sentinel check confirmed development database `pgsql_central` remained untouched. (Note: Phase 1 exit criterion tick in `docs/Phases.md` follows merge to `develop` and `composer ci` passing on `develop`).
+- **Current Focus:** Merge `test/phase1-exit-isolation` into `develop`, verify `composer ci`, then Phase 2 (Authentication & User Provisioning).
+- **Working branch:** `test/phase1-exit-isolation`
 
 ## Architectural Decisions (Decision Log)
 
@@ -53,32 +53,16 @@
 
 ## Next Steps
 
-1. Phase 1 exit criteria check: two isolated tenants, provisioning retry-safe.
+1. Merge `test/phase1-exit-isolation` to `develop`, run `composer ci`, and tick Phase 1 exit criteria in `docs/Phases.md`.
 2. Phase 2: Authentication & User Provisioning.
 
 ## Key Files Touched (latest)
 
-- `docker-compose.yml`
-- `.github/workflows/ci.yml`
-- `frontend/package.json`
-- `frontend/tsconfig.json`
-- `frontend/vite.config.ts`
-- `frontend/eslint.config.js`
-- `frontend/src/app.css`
-- `frontend/src/shared/types/apiResponse.ts`
-- `frontend/src/shared/api/ApiError.ts`
-- `frontend/src/shared/api/apiClient.ts`
-- `frontend/src/components/ui/button.tsx`
-- `frontend/src/components/ui/card.tsx`
-- `frontend/src/components/ui/badge.tsx`
-- `frontend/src/layouts/AppLayout.tsx`
-- `frontend/src/layouts/AuthLayout.tsx`
-- `frontend/src/layouts/AdminLayout.tsx`
-- `frontend/src/features/dashboard/pages/PlaceholderDashboard.tsx`
-- `frontend/src/shared/api/__tests__/apiClient.test.ts`
-- `frontend/src/features/dashboard/pages/__tests__/PlaceholderDashboard.test.tsx`
+- `backend/tests/Feature/Tenancy/Phase1ExitIsolationTest.php`
 
 ## Session Log (newest first)
+
+- `2026-10-25`: Phase 1 exit criteria isolation test: Created `tests/Feature/Tenancy/Phase1ExitIsolationTest.php` proving Phase 1 exit criterion ("two tenants on two subdomains see isolated data") using real HTTP requests. Provisioned `alpha` and `beta` via `ProvisionTenantDatabase::dispatchSync`. Registered test-only route behind `identify.tenant` returning `slug`, `settings_count`, `users_count`, `marker`, and `users`. Inserted `isolation.marker` = `alpha` into `tenant_alpha` only: confirmed visible on `alpha.nexuserp.test` (settings_count=7, marker=alpha) and invisible on `beta.nexuserp.test` (settings_count=6, marker=null). Proved reverse by inserting `isolation.marker` = `beta` into `tenant_beta` only. Verified owner user isolation (`owner@alpha.nexuserp.test` invisible from beta host and vice versa). Suspended beta: confirmed `beta.nexuserp.test` returns 403 `TENANT_SUSPENDED` while `alpha.nexuserp.test` continues serving its own data with 200 OK. Confirmed `TenantContext::get()` is null after every request. Verified sentinel row in `pgsql_central` survived untouched across full test execution. 72 Pest tests passed (312 assertions). Phase 1 exit criterion in `docs/Phases.md` kept unticked until branch is merged to `develop` and `composer ci` passes on `develop`.
 
 - `2026-10-25`: Frontend scaffold & tooling: Set up Inertia with React 19 and TypeScript (`strict: true`, no `any`, no `@ts-ignore`) in `frontend/`. Mapped Design.md §2 light mode color tokens into `app.css` via Tailwind `@theme`. Created Architecture §4 structure (`components/ui/`, `features/`, `layouts/`, `shared/`). Implemented typed `apiClient` with envelope parsing and `ApiError` propagation (code, message, errors, status, field helpers). Built `AppLayout` (256px royal blue sidebar, topbar, 1440px container), `AuthLayout`, `AdminLayout`, and `PlaceholderDashboard`. Wired `npm run ci` to ESLint, `tsc --noEmit`, and Vitest. Added 6 unit tests for `apiClient`/`ApiError` and 1 integration test for `PlaceholderDashboard` (all 7 passed). Playwright deferred to Phase 7 unticked. Zero backend files modified.
 
