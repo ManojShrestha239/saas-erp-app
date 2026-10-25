@@ -17,7 +17,7 @@
 - [x] Frontend scaffold: Inertia + React 19 + TS strict + Tailwind + shadcn/ui, `apiClient`, `ApiError`, app layouts.
 - [x] Backend tooling: Pest + Pest Arch, Larastan (level 8), Pint, composer ci script, isolated testing DB.
 - [x] Frontend tooling: ESLint, Vitest, npm run ci (Playwright deferred to Phase 7).
-- [ ] **Exit criteria:** two tenants on two subdomains see isolated data; provisioning is retry-safe; arch + isolation tests pass.
+- [x] **Exit criteria:** two tenants on two subdomains see isolated data; provisioning is retry-safe; arch + isolation tests pass.
 
 ## Phase 2: Authentication & User Provisioning
 

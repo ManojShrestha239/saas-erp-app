@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 1: Foundation & Multi-Tenancy Infrastructure
-- **Last Completed Task:** Phase 1 Exit Criterion: Two tenants on two subdomains see isolated data (`tests/Feature/Tenancy/Phase1ExitIsolationTest.php`) — provisioned alpha and beta via `ProvisionTenantDatabase::dispatchSync`, registered test-only route behind `identify.tenant` returning slug, settings_count, users_count, marker, and users. Proved data isolation: alpha marker only visible via alpha host, beta marker only visible via beta host, alpha owner not visible from beta host and vice versa. Suspending beta returns 403 `TENANT_SUSPENDED` while alpha continues returning its own data. `TenantContext::get()` is null after every request. All 72 Pest tests pass (312 assertions). Sentinel check confirmed development database `pgsql_central` remained untouched. (Note: Phase 1 exit criterion tick in `docs/Phases.md` follows merge to `develop` and `composer ci` passing on `develop`).
-- **Current Focus:** Merge `test/phase1-exit-isolation` into `develop`, verify `composer ci`, then Phase 2 (Authentication & User Provisioning).
-- **Working branch:** `test/phase1-exit-isolation`
+- **Active Phase:** Phase 2: Authentication & User Provisioning
+- **Last Completed Task:** `feat/auth-email-password`: Tenant login (`POST /api/v1/auth/login`) and logout (`POST /api/v1/auth/logout`) with stateful session auth. Tenant user provider `tenant_users` maps to `Modules\Auth\Models\TenantUser` via `UsesTenantConnection` (never queries central DB). `SESSION_DOMAIN` set to `null` (host-only cookie). Login regenerates session ID and records `tenant_id` in session; `EnsureTenantSession` rejects cross-tenant sessions with 401 `UNAUTHENTICATED`. Generic `INVALID_CREDENTIALS` (401) on wrong password and unknown email prevents user enumeration. Rate limiter throttles per `login:{tenant_id}:{email}:{ip}` (429 `TOO_MANY_ATTEMPTS`). All 81 Pest tests pass (352 assertions), 0 Pint issues, 0 PHPStan errors at Level 8.
+- **Current Focus:** User review of `feat/auth-email-password`, followed by approval to commit and merge to `develop`.
+- **Working branch:** `feat/auth-email-password`
 
 ## Architectural Decisions (Decision Log)
 
@@ -33,6 +33,7 @@
 | 11  | Separate `pgsql_testing` database configured via `phpunit.xml` (`DB_DATABASE` / `DB_CENTRAL_DATABASE`) | Keeps test execution completely isolated from development database |
 | 12  | Larastan level 8 + Pest Arch tests enforcing strict typing, no DB in controllers, module boundary isolation, no float in money | Static and architectural guarantees enforced in CI |
 | 13  | Provisioning database user requires only `CREATEDB` privilege in production (tied to Phase 7 deployment checklist) | Prevents superuser exposure and enforces least privilege; database creation succeeds without granting full administrative privileges; verification of dedicated non-superuser role added to Phase 7 release checklist |
+| 14  | Tenant-scoped session auth: host-only cookie (`SESSION_DOMAIN=null`), `web` guard resolves `tenant_users` via `UsesTenantConnection`, `tenant_id` session binding with `EnsureTenantSession` rejecting cross-tenant sessions | Defense-in-depth against cross-tenant session hijacking; browser enforces origin separation; middleware guarantees session validity across subdomains |
 
 ## Conventions Locked In
 
@@ -53,16 +54,26 @@
 
 ## Next Steps
 
-1. Merge `test/phase1-exit-isolation` to `develop`, run `composer ci`, and tick Phase 1 exit criteria in `docs/Phases.md`.
-2. Phase 2: Authentication & User Provisioning.
+1. Await user review and approval to commit and merge `feat/auth-email-password`.
+2. Continue Phase 2: Password reset & email verification or Google OAuth / Spatie RBAC.
 
 ## Key Files Touched (latest)
 
-- `backend/tests/Feature/Tenancy/Phase1ExitIsolationTest.php`
+- `backend/Modules/Auth/Models/TenantUser.php`
+- `backend/Modules/Auth/Http/Controllers/AuthController.php`
+- `backend/Modules/Auth/Http/Requests/LoginRequest.php`
+- `backend/Modules/Auth/Http/Resources/UserResource.php`
+- `backend/Modules/Auth/Http/Middleware/EnsureTenantSession.php`
+- `backend/Modules/Auth/Providers/AuthServiceProvider.php`
+- `backend/Modules/Auth/Routes/api.php`
+- `backend/config/auth.php`
+- `backend/config/session.php`
+- `backend/phpstan.neon`
+- `backend/tests/Feature/Auth/LoginTest.php`
 
 ## Session Log (newest first)
 
-- `2026-10-25`: Phase 1 exit criteria isolation test: Created `tests/Feature/Tenancy/Phase1ExitIsolationTest.php` proving Phase 1 exit criterion ("two tenants on two subdomains see isolated data") using real HTTP requests. Provisioned `alpha` and `beta` via `ProvisionTenantDatabase::dispatchSync`. Registered test-only route behind `identify.tenant` returning `slug`, `settings_count`, `users_count`, `marker`, and `users`. Inserted `isolation.marker` = `alpha` into `tenant_alpha` only: confirmed visible on `alpha.nexuserp.test` (settings_count=7, marker=alpha) and invisible on `beta.nexuserp.test` (settings_count=6, marker=null). Proved reverse by inserting `isolation.marker` = `beta` into `tenant_beta` only. Verified owner user isolation (`owner@alpha.nexuserp.test` invisible from beta host and vice versa). Suspended beta: confirmed `beta.nexuserp.test` returns 403 `TENANT_SUSPENDED` while `alpha.nexuserp.test` continues serving its own data with 200 OK. Confirmed `TenantContext::get()` is null after every request. Verified sentinel row in `pgsql_central` survived untouched across full test execution. 72 Pest tests passed (312 assertions). Phase 1 exit criterion in `docs/Phases.md` kept unticked until branch is merged to `develop` and `composer ci` passes on `develop`.
+- `2026-10-25`: `feat/auth-email-password`: Built tenant email/password authentication in `Modules/Auth` with stateful session auth. Added `TenantUser` model implementing `AuthenticatableContract` using `UsesTenantConnection` on `users` table with hidden password. Added `tenant_users` provider and wired `web` and `tenant` guards in `config/auth.php` (ensures `Auth::guard()` never touches central DB). Configured `SESSION_DOMAIN=null` (host-only cookie). Implemented `POST /api/v1/auth/login` (validated by `LoginRequest` with 12+ chars min length and regex enforcing at least one letter and one number; tenant-scoped throttling `login:{tenant_id}:{email}:{ip}` with lowercased email returning 429 `TOO_MANY_ATTEMPTS`; generic 401 `INVALID_CREDENTIALS` for unknown email and wrong password; session regeneration destroying prior session id on success; `Auth::login()`; records `tenant_id` in session; standard `ApiResponse` envelope with `UserResource`). Implemented `POST /api/v1/auth/logout` (invalidates session, regenerates CSRF token). Added `EnsureTenantSession` middleware ensuring replayed cross-tenant sessions are rejected with 401 `UNAUTHENTICATED`. Added 11 Pest feature tests (`tests/Feature/Auth/LoginTest.php`) using real tenant subdomains (`alpha.nexuserp.test`, `beta.nexuserp.test`) covering valid login, enumeration protection, throttling, tenant isolation of limits, case-insensitive email limit sharing, clearing failures on success, session fixation prevention, post-logout cookie invalidation, complexity validation, and cross-tenant replay rejection. All 84 Pest tests pass (376 assertions). 0 Pint issues, 0 PHPStan errors at level 8. Phase 2 checklist item in `docs/Phases.md` kept unchecked until merge to `develop` and CI passes.
 
 - `2026-10-25`: Frontend scaffold & tooling: Set up Inertia with React 19 and TypeScript (`strict: true`, no `any`, no `@ts-ignore`) in `frontend/`. Mapped Design.md §2 light mode color tokens into `app.css` via Tailwind `@theme`. Created Architecture §4 structure (`components/ui/`, `features/`, `layouts/`, `shared/`). Implemented typed `apiClient` with envelope parsing and `ApiError` propagation (code, message, errors, status, field helpers). Built `AppLayout` (256px royal blue sidebar, topbar, 1440px container), `AuthLayout`, `AdminLayout`, and `PlaceholderDashboard`. Wired `npm run ci` to ESLint, `tsc --noEmit`, and Vitest. Added 6 unit tests for `apiClient`/`ApiError` and 1 integration test for `PlaceholderDashboard` (all 7 passed). Playwright deferred to Phase 7 unticked. Zero backend files modified.
 
