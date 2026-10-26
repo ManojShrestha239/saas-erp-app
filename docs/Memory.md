@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 2: Authentication & User Provisioning
-- **Last Completed Task:** `feat/google-oauth`: Implemented Google OAuth authentication with automatic verified-email account linking (PRD §3.2). Installed `laravel/socialite` v5.31. Added forward-only migration `2026_10_26_000005_create_tenant_oauth_accounts_table.php` (`oauth_accounts` in tenant DB with ULID, user foreign key, provider, provider_id, unique constraints). Created `Modules\Auth\Models\OAuthAccount` and updated `TenantUser` with `oauthAccounts()` relation. Implemented `GoogleAuthService` enforcing strict email verification (`email_verified === true`; rejects unverified emails with 403 `UNVERIFIED_OAUTH_EMAIL`, non-existent users with 404 `ACCOUNT_NOT_FOUND`, deactivated users with 403 `ACCOUNT_DEACTIVATED`). Added `GoogleAuthController` with `GET /api/v1/auth/google/redirect` and `GET /api/v1/auth/google/callback` supporting both API JSON responses and HTTP 302 redirects. Session establishment integrated with `EnsureTenantSession`. 11 Pest tests added covering redirect, automatic verified-email account linking, returning user authentication, unverified rejection, uninvited rejection, deactivation blocking, OAuth error handling, state validation, and cross-tenant isolation. 130 Pest tests passing (640 assertions), Pint clean (115 files), PHPStan Level 8 0 errors, `composer ci` green.
-- **Current Focus:** User review of `feat/google-oauth`, followed by approval to commit and merge to `develop`.
-- **Working branch:** `feat/google-oauth`
+- **Last Completed Task:** `feat/super-admin-auth`: Implemented Super Admin authentication on the central platform domain. Created `Modules\SuperAdmin\Models\SuperAdmin` bound explicitly to `central` connection, configured dedicated `super_admin` guard and provider in `config/auth.php`. Created `EnsureCentralDomain` middleware rejecting super admin access on tenant subdomains with 404 `ROUTE_NOT_FOUND`. Built `SuperAdminAuthController` with `POST /api/v1/super-admin/login` (throttled 5 attempts/min, regenerates session, authenticates `super_admin` guard), `POST /api/v1/super-admin/logout` (invalidates session), and `GET /api/v1/super-admin/me` (returns `SuperAdminResource`). 10 Pest tests added covering login, anti-enumeration, throttling, clearing on success, subdomain rejection, profile, logout session invalidation, and tenant-user cross-guard isolation. 141 Pest tests passing (687 assertions), Pint clean (123 files), PHPStan Level 8 0 errors, `composer ci` green.
+- **Current Focus:** User review of `feat/super-admin-auth`, followed by approval to commit and merge to `develop`.
+- **Working branch:** `feat/super-admin-auth`
 
 ## Architectural Decisions (Decision Log)
 
@@ -38,6 +38,7 @@
 | 16  | Tenant-isolated Spatie RBAC: `TenantPermissionRegistrar` isolates cache by tenant ID (`spatie.permission.cache:{tenant_id}`); `TenantUser`, `Role`, and `Permission` use `UsesTenantConnection`; pivot `model_id` uses string(36) for ULIDs. | Guarantees zero cross-tenant role/permission leakage across concurrent requests or multi-tenant background commands; preserves ULID model identity; aligns with database-per-tenant architecture. |
 | 17  | Subscription package limits queried via `TenantPackageService` on `central` connection, enforced at business mutation time via `EnforceUserLimitService`; deactivated user status enforced in both login and `EnsureTenantSession`. | Cross-module decoupling compliant with Arch tests, while guaranteeing defense-in-depth against unauthorized access or limit violations. |
 | 18  | Google OAuth verified-email account linking: `oauth_accounts` table in tenant DB tracks provider identities per tenant; `GoogleAuthService` enforces strict `email_verified === true` (rejects unverified Google emails with 403 `UNVERIFIED_OAUTH_EMAIL`), requires existing tenant user (rejects uninvited/unknown users with 404 `ACCOUNT_NOT_FOUND`), blocks deactivated accounts (403 `ACCOUNT_DEACTIVATED`), and auto-verifies unverified tenant email on verified Google OAuth match. | Guarantees zero account takeovers from unverified OAuth emails, blocks unauthorized tenant registration into private tenant ERPs, preserves database-per-tenant isolation, and fulfills PRD §3.2. |
+| 19  | Central Super Admin authentication: `Modules\SuperAdmin\Models\SuperAdmin` explicitly bound to `central` connection, dedicated `super_admin` auth guard and provider in `config/auth.php`; `EnsureCentralDomain` restricts routes strictly to central domain (`nexuserp.test`, `localhost`, `127.0.0.1`) rejecting tenant subdomains with 404 `ROUTE_NOT_FOUND`. | Guarantees complete isolation between platform administration and tenant data, prevents credential collision or impersonation, and ensures Super Admin attack surface is invisible on tenant domains. |
 
 ## Conventions Locked In
 
@@ -63,18 +64,20 @@
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Auth/Http/Controllers/GoogleAuthController.php`
-- `backend/Modules/Auth/Services/GoogleAuthService.php`
-- `backend/Modules/Auth/Models/OAuthAccount.php`
-- `backend/Modules/Auth/Models/TenantUser.php`
-- `backend/Modules/Auth/Routes/api.php`
-- `backend/config/services.php`
-- `backend/database/migrations/tenant/2026_10_26_000005_create_tenant_oauth_accounts_table.php`
-- `backend/tests/Feature/Auth/GoogleOAuthTest.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminAuthController.php`
+- `backend/Modules/SuperAdmin/Models/SuperAdmin.php`
+- `backend/Modules/SuperAdmin/Providers/SuperAdminServiceProvider.php`
+- `backend/Modules/SuperAdmin/Routes/api.php`
+- `backend/Modules/SuperAdmin/Http/Requests/SuperAdminLoginRequest.php`
+- `backend/Modules/SuperAdmin/Http/Resources/SuperAdminResource.php`
+- `backend/Shared/Http/Middleware/EnsureCentralDomain.php`
+- `backend/config/auth.php`
+- `backend/bootstrap/app.php`
+- `backend/tests/Feature/SuperAdmin/SuperAdminAuthTest.php`
 
 ## Session Log (newest first)
 
-- `2026-10-26`: `feat/google-oauth`: Implemented Google OAuth authentication with automatic verified-email account linking (PRD §3.2). Installed `laravel/socialite` v5.31. Added forward-only migration `2026_10_26_000005_create_tenant_oauth_accounts_table.php` (`oauth_accounts` in tenant DB with ULID, user foreign key, provider, provider_id, email, avatar, unique constraints). Created `OAuthAccount` model and updated `TenantUser` with `oauthAccounts()` relation. Implemented `GoogleAuthService` enforcing strict email verification (`email_verified === true`; rejects unverified emails with 403 `UNVERIFIED_OAUTH_EMAIL`, non-existent users with 404 `ACCOUNT_NOT_FOUND`, deactivated users with 403 `ACCOUNT_DEACTIVATED`, auto-verifying tenant email on verified Google match). Added `GoogleAuthController` with `GET /api/v1/auth/google/redirect` and `GET /api/v1/auth/google/callback` supporting both API JSON responses and HTTP 302 redirects. Session establishment integrated with `EnsureTenantSession`. 11 Pest tests added covering redirect, automatic verified-email account linking, returning user authentication, unverified rejection, uninvited rejection, deactivation blocking, OAuth error handling, state validation, and cross-tenant isolation. Full suite: 130 Pest tests passing (640 assertions), Pint clean (115 files), PHPStan Level 8 0 errors, `composer ci` green.
+- `2026-10-26`: `feat/super-admin-auth`: Implemented Super Admin authentication on central domain. Created `Modules\SuperAdmin\Models\SuperAdmin` explicitly bound to `central` database connection. Configured dedicated `super_admin` auth guard and `super_admins` provider in `backend/config/auth.php`. Created `EnsureCentralDomain` middleware blocking access on tenant subdomains with 404 `ROUTE_NOT_FOUND`. Implemented `SuperAdminAuthController` with `POST /api/v1/super-admin/login` (throttled 5 attempts/min, regenerates session, authenticates `super_admin` guard), `POST /api/v1/super-admin/logout` (session invalidation), and `GET /api/v1/super-admin/me` (returns `SuperAdminResource`). Added 10 Pest tests in `tests/Feature/SuperAdmin/SuperAdminAuthTest.php` covering login, anti-enumeration, throttling, clearing on success, subdomain rejection, profile retrieval, logout invalidation, and tenant user cross-guard isolation. Full test suite: 141 tests pass (687 assertions), Pint clean (123 files), PHPStan Level 8 0 errors, `composer ci` green.
 - `backend/tests/Feature/Auth/RbacTest.php`
 
 ## Session Log (newest first)

@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Modules\Auth\Models\TenantUser;
+use Modules\SuperAdmin\Models\SuperAdmin;
 
 return [
 
@@ -47,6 +48,10 @@ return [
             'driver' => 'session',
             'provider' => 'tenant_users',
         ],
+        'super_admin' => [
+            'driver' => 'session',
+            'provider' => 'super_admins',
+        ],
     ],
 
     /*
@@ -70,6 +75,11 @@ return [
         'tenant_users' => [
             'driver' => 'eloquent',
             'model' => TenantUser::class,
+        ],
+
+        'super_admins' => [
+            'driver' => 'eloquent',
+            'model' => SuperAdmin::class,
         ],
 
         'users' => [

@@ -5,6 +5,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Shared\Exceptions\ApiExceptionRenderer;
+use Shared\Http\Middleware\EnsureCentralDomain;
 use Shared\Http\Middleware\EnsureJsonRequest;
 use Shared\Http\Middleware\IdentifyTenant;
 
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'ensure.json' => EnsureJsonRequest::class,
             'tenant' => IdentifyTenant::class,
             'identify.tenant' => IdentifyTenant::class,
+            'central.domain' => EnsureCentralDomain::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
