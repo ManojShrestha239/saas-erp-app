@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\EmailVerificationController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
+use Modules\Auth\Http\Controllers\TenantUserController;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 
 Route::middleware([
@@ -32,4 +33,18 @@ Route::middleware([
         ->name('auth.email.verify');
     Route::post('email/resend', [EmailVerificationController::class, 'resend'])
         ->name('auth.email.resend');
+});
+
+Route::middleware([
+    'identify.tenant',
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    EnsureTenantSession::class,
+    'auth:web',
+])->prefix('users')->group(function (): void {
+    Route::get('', [TenantUserController::class, 'index'])->name('users.index');
+    Route::post('invite', [TenantUserController::class, 'invite'])->name('users.invite');
+    Route::patch('{id}/role', [TenantUserController::class, 'updateRole'])->name('users.update-role');
+    Route::patch('{id}/status', [TenantUserController::class, 'updateStatus'])->name('users.update-status');
 });

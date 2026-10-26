@@ -55,6 +55,14 @@ final class AuthController
             );
         }
 
+        if ($user->status === 'deactivated') {
+            return ApiResponse::error(
+                message: 'Your account has been deactivated.',
+                code: 'ACCOUNT_DEACTIVATED',
+                status: HttpStatus::FORBIDDEN,
+            );
+        }
+
         if (config('auth.require_email_verification', true) && $user->email_verified_at === null) {
             return ApiResponse::error(
                 message: 'Your email address is not verified.',

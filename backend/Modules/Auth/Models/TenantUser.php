@@ -18,6 +18,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $name
  * @property string $email
  * @property string $password
+ * @property string $status
  * @property Carbon|null $email_verified_at
  * @property string|null $remember_token
  * @property Carbon|null $created_at
@@ -46,6 +47,8 @@ final class TenantUser extends Model implements AuthenticatableContract, Authori
         'name',
         'email',
         'password',
+        'status',
+        'email_verified_at',
     ];
 
     /**

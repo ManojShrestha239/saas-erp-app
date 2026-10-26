@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 2: Authentication & User Provisioning
-- **Last Completed Task:** `feat/spatie-rbac-permissions`: Integrated `spatie/laravel-permission` with custom `Role`, `Permission`, and `TenantPermissionRegistrar` ensuring tenant-isolated caching (`spatie.permission.cache:{tenant_id}`). Defined `TenantRole` and `TenantPermission` enums encoding the exact PRD §2.1 permission matrix. Added forward-only migration `2026_10_26_000003_create_permission_tables.php` supporting ULID model keys. Added `Authorizable` and `HasRoles` traits to `TenantUser`. Added `TenantRolePermissionSeeder` and updated `ProvisionTenantDatabase` to seed permissions/roles and assign Owner role to tenant creators. Added 7 Pest tests in `tests/Feature/Auth/RbacTest.php`. 109 Pest tests pass (544 assertions), 0 Pint issues, 0 PHPStan errors at Level 8, `composer ci` green.
-- **Current Focus:** User review of `feat/spatie-rbac-permissions`, followed by approval to commit and merge to `develop`.
-- **Working branch:** `feat/spatie-rbac-permissions`
+- **Last Completed Task:** `feat/tenant-user-management`: Built full tenant user management API with subscription package user-limit enforcement and deactivation defense-in-depth. Added `GET /api/v1/users` (paginated with roles/status), `POST /api/v1/users/invite` (checks package limit, assigns Spatie role), `PATCH /api/v1/users/{id}/role` (updates role, prevents demoting sole active owner with 400 `CANNOT_DEMOTE_SOLE_OWNER`), and `PATCH /api/v1/users/{id}/status` (activate/deactivate, prevents self-deactivation and sole owner deactivation). Added forward-only migration `2026_10_26_000004_add_status_to_tenant_users_table.php`. Deactivated users blocked at login (403 `ACCOUNT_DEACTIVATED`) and in `EnsureTenantSession`. Added `TenantUserPolicy` and `TenantPackageService` / `EnforceUserLimitService`. 119 Pest tests pass (595 assertions), 0 Pint issues, 0 PHPStan errors at Level 8, `composer ci` green.
+- **Current Focus:** User review of `feat/tenant-user-management`, followed by approval to commit and merge to `develop`.
+- **Working branch:** `feat/tenant-user-management`
 
 ## Architectural Decisions (Decision Log)
 
@@ -36,6 +36,7 @@
 | 14  | Tenant-scoped session auth: host-only cookie (`SESSION_DOMAIN=null`), `web` guard resolves `tenant_users` via `UsesTenantConnection`, `tenant_id` session binding with `EnsureTenantSession` rejecting cross-tenant sessions | Defense-in-depth against cross-tenant session hijacking; browser enforces origin separation; middleware guarantees session validity across subdomains |
 | 15  | Password reset tokens and email verification tokens hashed (SHA-256) in tenant DB; defaults: 60-minute token expiry, email verification required before login for tenant users (`auth.require_email_verification`), password reset revokes all active sessions across the session driver store, and mail is logged to file in development (`MAIL_MAILER=log`). | High entropy single-use tokens prevent token theft and replay; cross-device session destruction terminates active access upon credential changes; development file logging prevents accidental dispatch. |
 | 16  | Tenant-isolated Spatie RBAC: `TenantPermissionRegistrar` isolates cache by tenant ID (`spatie.permission.cache:{tenant_id}`); `TenantUser`, `Role`, and `Permission` use `UsesTenantConnection`; pivot `model_id` uses string(36) for ULIDs. | Guarantees zero cross-tenant role/permission leakage across concurrent requests or multi-tenant background commands; preserves ULID model identity; aligns with database-per-tenant architecture. |
+| 17  | Subscription package limits queried via `TenantPackageService` on `central` connection, enforced at business mutation time via `EnforceUserLimitService`; deactivated user status enforced in both login and `EnsureTenantSession`. | Cross-module decoupling compliant with Arch tests, while guaranteeing defense-in-depth against unauthorized access or limit violations. |
 
 ## Conventions Locked In
 
@@ -56,23 +57,29 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/spatie-rbac-permissions`.
-2. Continue Phase 2: Google OAuth with verified email account linking or Tenant user management UI & API.
+1. Await user review and approval to commit and merge `feat/tenant-user-management`.
+2. Continue Phase 2: Google OAuth with verified email account linking or Super Admin authentication on the central domain.
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Auth/Enums/TenantPermission.php`
-- `backend/Modules/Auth/Enums/TenantRole.php`
-- `backend/Modules/Auth/Models/Permission.php`
-- `backend/Modules/Auth/Models/Role.php`
+- `backend/Modules/Auth/Http/Controllers/TenantUserController.php`
+- `backend/Modules/Auth/Http/Requests/InviteUserRequest.php`
+- `backend/Modules/Auth/Http/Requests/UpdateUserRoleRequest.php`
+- `backend/Modules/Auth/Http/Requests/UpdateUserStatusRequest.php`
+- `backend/Modules/Auth/Policies/TenantUserPolicy.php`
+- `backend/Modules/Auth/Services/EnforceUserLimitService.php`
+- `backend/Modules/Tenancy/Services/TenantPackageService.php`
+- `backend/Modules/Auth/Http/Resources/UserResource.php`
 - `backend/Modules/Auth/Models/TenantUser.php`
-- `backend/Modules/Auth/Services/TenantPermissionRegistrar.php`
-- `backend/Modules/Auth/Providers/AuthServiceProvider.php`
-- `backend/Shared/Tenancy/TenantManager.php`
-- `backend/database/migrations/tenant/2026_10_26_000003_create_permission_tables.php`
-- `backend/database/seeders/TenantRolePermissionSeeder.php`
-- `backend/Modules/Tenancy/Jobs/ProvisionTenantDatabase.php`
-- `backend/config/permission.php`
+- `backend/Modules/Auth/Http/Controllers/AuthController.php`
+- `backend/Modules/Auth/Http/Middleware/EnsureTenantSession.php`
+- `backend/Modules/Auth/Routes/api.php`
+- `backend/database/migrations/tenant/2026_10_26_000004_add_status_to_tenant_users_table.php`
+- `backend/tests/Feature/Auth/TenantUserManagementTest.php`
+
+## Session Log (newest first)
+
+- `2026-10-26`: `feat/tenant-user-management`: Implemented tenant user management API with subscription package user limits. Added migration `2026_10_26_000004_add_status_to_tenant_users_table.php` adding indexed `status` (default `active`) to tenant `users`. Added `TenantUserController` with `GET /api/v1/users` (server-side pagination, eager loaded roles), `POST /api/v1/users/invite` (enforcing package user limits via `EnforceUserLimitService` and `TenantPackageService`, unique email on tenant connection, Spatie role assignment), `PATCH /api/v1/users/{id}/role` (validating `TenantRole`, preventing sole active owner demotion with 400 `CANNOT_DEMOTE_SOLE_OWNER`), and `PATCH /api/v1/users/{id}/status` (preventing self-deactivation via `TenantUserPolicy` and sole owner deactivation). Added deactivated account login blocking (403 `ACCOUNT_DEACTIVATED`) and active session rejection in `EnsureTenantSession`. Added 10 Pest tests in `TenantUserManagementTest.php` verifying authorization policies, listing, invites, duplicate rejection, role updates, limit enforcement, deactivation, and multi-tenant isolation. Full suite: 119 tests pass (595 assertions), Pint clean (110 files), PHPStan Level 8 0 errors, `composer ci` green.
 - `backend/tests/Feature/Auth/RbacTest.php`
 
 ## Session Log (newest first)

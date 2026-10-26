@@ -22,6 +22,12 @@ final class UserResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'status' => $this->status ?? 'active',
+            'email_verified_at' => $this->email_verified_at?->toISOString(),
+            'roles' => $this->relationLoaded('roles')
+                ? $this->roles->pluck('name')->values()->all()
+                : $this->getRoleNames()->values()->all(),
+            'created_at' => $this->created_at?->toISOString(),
         ];
     }
 }

@@ -25,7 +25,7 @@
 - [x] Login throttling and session handling per tenant.
 - [ ] Google OAuth with safe account linking (verified email only).
 - [x] Spatie Laravel Permission: roles (Super Admin, Tenant Owner, Accountant, Warehouse Manager, Sales Rep) and the PRD permission matrix.
-- [ ] Tenant user management UI (invite, role assign, deactivate) with package user-limit enforcement.
+- [x] Tenant user management API (invite, role assign, deactivate) with package user-limit enforcement (UI in frontend task).
 - [ ] Super Admin authentication on the central domain.
 - [ ] Frontend: auth pages, protected routes, permission-aware navigation (`useCan`).
 - **Exit criteria:** user of tenant A cannot log into tenant B; every route has a policy test.
