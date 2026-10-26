@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 2: Authentication & User Provisioning
-- **Last Completed Task:** `feat/tenant-user-management`: Built full tenant user management API with subscription package user-limit enforcement and deactivation defense-in-depth. Added `GET /api/v1/users` (paginated with roles/status), `POST /api/v1/users/invite` (checks package limit, assigns Spatie role), `PATCH /api/v1/users/{id}/role` (updates role, prevents demoting sole active owner with 400 `CANNOT_DEMOTE_SOLE_OWNER`), and `PATCH /api/v1/users/{id}/status` (activate/deactivate, prevents self-deactivation and sole owner deactivation). Added forward-only migration `2026_10_26_000004_add_status_to_tenant_users_table.php`. Deactivated users blocked at login (403 `ACCOUNT_DEACTIVATED`) and in `EnsureTenantSession`. Added `TenantUserPolicy` and `TenantPackageService` / `EnforceUserLimitService`. 119 Pest tests pass (595 assertions), 0 Pint issues, 0 PHPStan errors at Level 8, `composer ci` green.
-- **Current Focus:** User review of `feat/tenant-user-management`, followed by approval to commit and merge to `develop`.
-- **Working branch:** `feat/tenant-user-management`
+- **Last Completed Task:** `feat/google-oauth`: Implemented Google OAuth authentication with automatic verified-email account linking (PRD §3.2). Installed `laravel/socialite` v5.31. Added forward-only migration `2026_10_26_000005_create_tenant_oauth_accounts_table.php` (`oauth_accounts` in tenant DB with ULID, user foreign key, provider, provider_id, unique constraints). Created `Modules\Auth\Models\OAuthAccount` and updated `TenantUser` with `oauthAccounts()` relation. Implemented `GoogleAuthService` enforcing strict email verification (`email_verified === true`; rejects unverified emails with 403 `UNVERIFIED_OAUTH_EMAIL`, non-existent users with 404 `ACCOUNT_NOT_FOUND`, deactivated users with 403 `ACCOUNT_DEACTIVATED`). Added `GoogleAuthController` with `GET /api/v1/auth/google/redirect` and `GET /api/v1/auth/google/callback` supporting both API JSON responses and HTTP 302 redirects. Session establishment integrated with `EnsureTenantSession`. 11 Pest tests added covering redirect, automatic verified-email account linking, returning user authentication, unverified rejection, uninvited rejection, deactivation blocking, OAuth error handling, state validation, and cross-tenant isolation. 130 Pest tests passing (640 assertions), Pint clean (115 files), PHPStan Level 8 0 errors, `composer ci` green.
+- **Current Focus:** User review of `feat/google-oauth`, followed by approval to commit and merge to `develop`.
+- **Working branch:** `feat/google-oauth`
 
 ## Architectural Decisions (Decision Log)
 
@@ -37,6 +37,7 @@
 | 15  | Password reset tokens and email verification tokens hashed (SHA-256) in tenant DB; defaults: 60-minute token expiry, email verification required before login for tenant users (`auth.require_email_verification`), password reset revokes all active sessions across the session driver store, and mail is logged to file in development (`MAIL_MAILER=log`). | High entropy single-use tokens prevent token theft and replay; cross-device session destruction terminates active access upon credential changes; development file logging prevents accidental dispatch. |
 | 16  | Tenant-isolated Spatie RBAC: `TenantPermissionRegistrar` isolates cache by tenant ID (`spatie.permission.cache:{tenant_id}`); `TenantUser`, `Role`, and `Permission` use `UsesTenantConnection`; pivot `model_id` uses string(36) for ULIDs. | Guarantees zero cross-tenant role/permission leakage across concurrent requests or multi-tenant background commands; preserves ULID model identity; aligns with database-per-tenant architecture. |
 | 17  | Subscription package limits queried via `TenantPackageService` on `central` connection, enforced at business mutation time via `EnforceUserLimitService`; deactivated user status enforced in both login and `EnsureTenantSession`. | Cross-module decoupling compliant with Arch tests, while guaranteeing defense-in-depth against unauthorized access or limit violations. |
+| 18  | Google OAuth verified-email account linking: `oauth_accounts` table in tenant DB tracks provider identities per tenant; `GoogleAuthService` enforces strict `email_verified === true` (rejects unverified Google emails with 403 `UNVERIFIED_OAUTH_EMAIL`), requires existing tenant user (rejects uninvited/unknown users with 404 `ACCOUNT_NOT_FOUND`), blocks deactivated accounts (403 `ACCOUNT_DEACTIVATED`), and auto-verifies unverified tenant email on verified Google OAuth match. | Guarantees zero account takeovers from unverified OAuth emails, blocks unauthorized tenant registration into private tenant ERPs, preserves database-per-tenant isolation, and fulfills PRD §3.2. |
 
 ## Conventions Locked In
 
@@ -62,24 +63,18 @@
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Auth/Http/Controllers/TenantUserController.php`
-- `backend/Modules/Auth/Http/Requests/InviteUserRequest.php`
-- `backend/Modules/Auth/Http/Requests/UpdateUserRoleRequest.php`
-- `backend/Modules/Auth/Http/Requests/UpdateUserStatusRequest.php`
-- `backend/Modules/Auth/Policies/TenantUserPolicy.php`
-- `backend/Modules/Auth/Services/EnforceUserLimitService.php`
-- `backend/Modules/Tenancy/Services/TenantPackageService.php`
-- `backend/Modules/Auth/Http/Resources/UserResource.php`
+- `backend/Modules/Auth/Http/Controllers/GoogleAuthController.php`
+- `backend/Modules/Auth/Services/GoogleAuthService.php`
+- `backend/Modules/Auth/Models/OAuthAccount.php`
 - `backend/Modules/Auth/Models/TenantUser.php`
-- `backend/Modules/Auth/Http/Controllers/AuthController.php`
-- `backend/Modules/Auth/Http/Middleware/EnsureTenantSession.php`
 - `backend/Modules/Auth/Routes/api.php`
-- `backend/database/migrations/tenant/2026_10_26_000004_add_status_to_tenant_users_table.php`
-- `backend/tests/Feature/Auth/TenantUserManagementTest.php`
+- `backend/config/services.php`
+- `backend/database/migrations/tenant/2026_10_26_000005_create_tenant_oauth_accounts_table.php`
+- `backend/tests/Feature/Auth/GoogleOAuthTest.php`
 
 ## Session Log (newest first)
 
-- `2026-10-26`: `feat/tenant-user-management`: Implemented tenant user management API with subscription package user limits. Added migration `2026_10_26_000004_add_status_to_tenant_users_table.php` adding indexed `status` (default `active`) to tenant `users`. Added `TenantUserController` with `GET /api/v1/users` (server-side pagination, eager loaded roles), `POST /api/v1/users/invite` (enforcing package user limits via `EnforceUserLimitService` and `TenantPackageService`, unique email on tenant connection, Spatie role assignment), `PATCH /api/v1/users/{id}/role` (validating `TenantRole`, preventing sole active owner demotion with 400 `CANNOT_DEMOTE_SOLE_OWNER`), and `PATCH /api/v1/users/{id}/status` (preventing self-deactivation via `TenantUserPolicy` and sole owner deactivation). Added deactivated account login blocking (403 `ACCOUNT_DEACTIVATED`) and active session rejection in `EnsureTenantSession`. Added 10 Pest tests in `TenantUserManagementTest.php` verifying authorization policies, listing, invites, duplicate rejection, role updates, limit enforcement, deactivation, and multi-tenant isolation. Full suite: 119 tests pass (595 assertions), Pint clean (110 files), PHPStan Level 8 0 errors, `composer ci` green.
+- `2026-10-26`: `feat/google-oauth`: Implemented Google OAuth authentication with automatic verified-email account linking (PRD §3.2). Installed `laravel/socialite` v5.31. Added forward-only migration `2026_10_26_000005_create_tenant_oauth_accounts_table.php` (`oauth_accounts` in tenant DB with ULID, user foreign key, provider, provider_id, email, avatar, unique constraints). Created `OAuthAccount` model and updated `TenantUser` with `oauthAccounts()` relation. Implemented `GoogleAuthService` enforcing strict email verification (`email_verified === true`; rejects unverified emails with 403 `UNVERIFIED_OAUTH_EMAIL`, non-existent users with 404 `ACCOUNT_NOT_FOUND`, deactivated users with 403 `ACCOUNT_DEACTIVATED`, auto-verifying tenant email on verified Google match). Added `GoogleAuthController` with `GET /api/v1/auth/google/redirect` and `GET /api/v1/auth/google/callback` supporting both API JSON responses and HTTP 302 redirects. Session establishment integrated with `EnsureTenantSession`. 11 Pest tests added covering redirect, automatic verified-email account linking, returning user authentication, unverified rejection, uninvited rejection, deactivation blocking, OAuth error handling, state validation, and cross-tenant isolation. Full suite: 130 Pest tests passing (640 assertions), Pint clean (115 files), PHPStan Level 8 0 errors, `composer ci` green.
 - `backend/tests/Feature/Auth/RbacTest.php`
 
 ## Session Log (newest first)

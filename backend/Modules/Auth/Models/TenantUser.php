@@ -8,6 +8,7 @@ use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 use Illuminate\Support\Carbon;
 use Shared\Tenancy\UsesTenantConnection;
@@ -65,4 +66,12 @@ final class TenantUser extends Model implements AuthenticatableContract, Authori
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    /**
+     * @return HasMany<OAuthAccount, $this>
+     */
+    public function oauthAccounts(): HasMany
+    {
+        return $this->hasMany(OAuthAccount::class, 'user_id');
+    }
 }

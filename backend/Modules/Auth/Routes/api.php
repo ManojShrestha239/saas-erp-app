@@ -8,6 +8,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\EmailVerificationController;
+use Modules\Auth\Http\Controllers\GoogleAuthController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\TenantUserController;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
@@ -33,6 +34,11 @@ Route::middleware([
         ->name('auth.email.verify');
     Route::post('email/resend', [EmailVerificationController::class, 'resend'])
         ->name('auth.email.resend');
+
+    Route::get('google/redirect', [GoogleAuthController::class, 'redirect'])
+        ->name('auth.google.redirect');
+    Route::get('google/callback', [GoogleAuthController::class, 'callback'])
+        ->name('auth.google.callback');
 });
 
 Route::middleware([
