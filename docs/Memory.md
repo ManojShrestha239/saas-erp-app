@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 2: Authentication & User Provisioning (Complete - ready for exit review)
-- **Last Completed Task:** `feat/frontend-auth`: Frontend Auth Pages, Protected Navigation, `useCan` Hook & Tenant User Management UI. Built React 19 auth pages (`Login`, `ForgotPassword`, `ResetPassword`, `VerifyEmail`), tenant user management page (`UsersIndex` with invite dialog, role update, status toggle), accessible UI primitives (`input`, `label`, `alert`, `dialog`), `useCan` hook and `<Can>` component, `AppLayout` sidebar navigation filtering, root `app.blade.php`, `HandleInertiaRequests` lazy-sharing tenant & auth props (roles and permissions), and 7 backend Inertia web route feature tests. Full test suite: 148 backend Pest tests passing (766 assertions), Pint clean (127 files), PHPStan Level 8 0 errors, Vitest 17 tests passing (5 test suites), ESLint clean, TypeScript strict 0 errors.
-- **Current Focus:** User review of `feat/frontend-auth`, followed by approval to commit and merge to `develop`.
-- **Working branch:** `feat/frontend-auth`
+- **Active Phase:** Phase 3: Core Inventory & Contact Management
+- **Last Completed Task:** `feat/product-catalog`: Product Catalog Backend Engine (`Modules/Inventory`). Built tenant schema migrations (`categories`, `units_of_measure`, `products`), models with `HasUlids` & `UsesTenantConnection`, backed enum `TaxCategory`, DTOs, `ProductService`, `CategoryService`, `UnitOfMeasureService` with `DB::transaction(..., 3)` and pessimistic locking, thin controllers with server-side pagination, whitelisted filtering and sorting, Form Requests with unique/exists rules on tenant DB, API resources adhering to the standard envelope, policies enforcing `products.view` and `products.manage`, and comprehensive Pest feature tests covering CRUD, money stored as integer cents, negative price rejection, tenant-scoped unique SKUs, and cross-tenant data isolation. Full test suite: 156 backend Pest tests passing (849 assertions), Pint clean (161 files), Larastan Level 8 0 errors, Vitest 17 tests passing (5 test suites), ESLint clean.
+- **Current Focus:** User commit and merge of `feat/product-catalog` to `develop`, followed by proposing next Phase 3 task: Warehouses with append-only stock movements and cached stock levels.
+- **Working branch:** `feat/product-catalog`
 
 ## Architectural Decisions (Decision Log)
 
@@ -40,6 +40,7 @@
 | 18  | Google OAuth verified-email account linking: `oauth_accounts` table in tenant DB tracks provider identities per tenant; `GoogleAuthService` enforces strict `email_verified === true` (rejects unverified Google emails with 403 `UNVERIFIED_OAUTH_EMAIL`), requires existing tenant user (rejects uninvited/unknown users with 404 `ACCOUNT_NOT_FOUND`), blocks deactivated accounts (403 `ACCOUNT_DEACTIVATED`), and auto-verifies unverified tenant email on verified Google OAuth match. | Guarantees zero account takeovers from unverified OAuth emails, blocks unauthorized tenant registration into private tenant ERPs, preserves database-per-tenant isolation, and fulfills PRD §3.2. |
 | 19  | Central Super Admin authentication: `Modules\SuperAdmin\Models\SuperAdmin` explicitly bound to `central` connection, dedicated `super_admin` auth guard and provider in `config/auth.php`; `EnsureCentralDomain` restricts routes strictly to central domain (`nexuserp.test`, `localhost`, `127.0.0.1`) rejecting tenant subdomains with 404 `ROUTE_NOT_FOUND`. | Guarantees complete isolation between platform administration and tenant data, prevents credential collision or impersonation, and ensures Super Admin attack surface is invisible on tenant domains. |
 | 20  | Inertia frontend auth pages & lazy props: Inertia root view `app.blade.php` and `HandleInertiaRequests` middleware lazy-evaluates `auth.user` and `tenant` via Closures after `identify.tenant` route middleware sets `TenantContext`; client-side RBAC enforced via `useCan` hook and `<Can>` wrapper component checking both permissions and roles case-insensitively; full sidebar navigation filtered by `useCan`. | Guarantees tenant context and active tenant connection are cleanly resolved before props are shared; prevents concrete model coupling in `Shared/` (preserving Arch tests); ensures granular client-side permission-gated navigation and actions. |
+| 21  | Product catalog architecture in `Modules\Inventory`: integer-cent money fields (`cost_price_cents`, `selling_price_cents` as `BIGINT`), tenant-scoped unique SKU, ULID IDs, forward-only tenant migrations dynamically discovered in `ProvisionTenantDatabase`, and strict RBAC policy checks against `products.view` and `products.manage`. | Guarantees zero floating-point inaccuracies, strict tenant isolation and ULID performance; ensures dynamic execution of module migrations during provisioning without manual array maintenance; enforces RBAC matrix per PRD §2.1. |
 
 ## Conventions Locked In
 
@@ -60,26 +61,33 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/frontend-auth` to `develop`.
-2. Review Phase 2 exit criteria and prepare Phase 3: Core Inventory & Contact Management.
+1. Await user commit and merge of `feat/product-catalog` into `develop`.
+2. Propose next task in Phase 3: Warehouses with append-only `stock_movements` + cached `stock_levels`.
 
 ## Key Files Touched (latest)
 
-- `frontend/src/features/auth/hooks/useCan.ts`
-- `frontend/src/features/auth/components/Can.tsx`
-- `frontend/src/layouts/AppLayout.tsx`
-- `frontend/src/features/auth/pages/Login.tsx`
-- `frontend/src/features/auth/pages/ForgotPassword.tsx`
-- `frontend/src/features/auth/pages/ResetPassword.tsx`
-- `frontend/src/features/auth/pages/VerifyEmail.tsx`
-- `frontend/src/features/users/pages/UsersIndex.tsx`
-- `backend/Shared/Http/Middleware/HandleInertiaRequests.php`
-- `backend/Modules/Auth/Routes/web.php`
-- `backend/resources/views/app.blade.php`
-- `backend/tests/Feature/Auth/FrontendAuthRoutesTest.php`
+- `backend/Modules/Inventory/Database/Migrations/2026_10_26_000006_create_inventory_categories_table.php`
+- `backend/Modules/Inventory/Database/Migrations/2026_10_26_000007_create_inventory_units_of_measure_table.php`
+- `backend/Modules/Inventory/Database/Migrations/2026_10_26_000008_create_inventory_products_table.php`
+- `backend/Modules/Inventory/Models/Category.php`
+- `backend/Modules/Inventory/Models/UnitOfMeasure.php`
+- `backend/Modules/Inventory/Models/Product.php`
+- `backend/Modules/Inventory/Enums/TaxCategory.php`
+- `backend/Modules/Inventory/DTOs/CreateProductData.php`
+- `backend/Modules/Inventory/DTOs/UpdateProductData.php`
+- `backend/Modules/Inventory/Services/ProductService.php`
+- `backend/Modules/Inventory/Services/CategoryService.php`
+- `backend/Modules/Inventory/Services/UnitOfMeasureService.php`
+- `backend/Modules/Inventory/Policies/ProductPolicy.php`
+- `backend/Modules/Inventory/Http/Controllers/ProductController.php`
+- `backend/Modules/Inventory/Routes/api.php`
+- `backend/Modules/Inventory/Providers/InventoryServiceProvider.php`
+- `backend/Modules/Tenancy/Jobs/ProvisionTenantDatabase.php`
+- `backend/tests/Feature/Inventory/ProductCatalogTest.php`
 
 ## Session Log (newest first)
 
+- `2026-10-26`: `feat/product-catalog`: Implemented Product Catalog Backend Engine in `Modules/Inventory`. Added tenant migrations for `categories`, `units_of_measure`, and `products` (ULID primary keys, tenant-scoped unique SKU, BIGINT integer cents for `cost_price_cents` and `selling_price_cents`, indexed barcode, `tax_category` enum, `low_stock_threshold`). Created domain models with `UsesTenantConnection` and `HasUlids`, readonly typed DTOs, `ProductService`, `CategoryService`, and `UnitOfMeasureService` with `DB::transaction(..., 3)` and pessimistic row locking (`lockForUpdate()`). Built Form Requests with tenant DB uniqueness/existence validation, API Resources adhering to standard envelope, and Policies enforcing PRD §2.1 RBAC (`products.view` for Owner/Accountant/Warehouse/Sales, `products.manage` for Owner/Warehouse). Updated `ProvisionTenantDatabase` to dynamically scan all `Modules/*/Database/Migrations`. Added 7 Pest tests in `tests/Feature/Inventory/ProductCatalogTest.php` covering CRUD, RBAC, negative price rejection, search/filter/sort, and multi-tenant SKU isolation. Full suite: 156 backend tests passing (849 assertions), Pint clean (161 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean. Ticked Phase 3 item.
 - `2026-10-26`: `feat/frontend-auth`: Implemented Frontend Auth Pages, Protected Navigation, `useCan` hook & Tenant User Management UI. Built React 19 pages (`Login`, `ForgotPassword`, `ResetPassword`, `VerifyEmail`), tenant user management page (`UsersIndex` with invite dialog, role update, status toggle), accessible UI primitives (`input`, `label`, `alert`, `dialog`), `useCan` hook and `<Can>` component, `AppLayout` sidebar navigation filtering, root `app.blade.php`, `HandleInertiaRequests` lazy-sharing tenant & auth props (roles and permissions), and 7 backend Inertia web route feature tests in `tests/Feature/Auth/FrontendAuthRoutesTest.php`. Full test suite: 148 backend Pest tests pass (766 assertions), Pint clean (127 files), PHPStan Level 8 0 errors, Vitest 17 tests pass (5 test suites), ESLint clean, TypeScript strict 0 errors. All Phase 2 items complete.
 - `2026-10-26`: `feat/super-admin-auth`: Implemented Super Admin authentication on central domain. Created `Modules\SuperAdmin\Models\SuperAdmin` explicitly bound to `central` database connection. Configured dedicated `super_admin` auth guard and `super_admins` provider in `backend/config/auth.php`. Created `EnsureCentralDomain` middleware blocking access on tenant subdomains with 404 `ROUTE_NOT_FOUND`. Implemented `SuperAdminAuthController` with `POST /api/v1/super-admin/login` (throttled 5 attempts/min, regenerates session, authenticates `super_admin` guard), `POST /api/v1/super-admin/logout` (session invalidation), and `GET /api/v1/super-admin/me` (returns `SuperAdminResource`). Added 10 Pest tests in `tests/Feature/SuperAdmin/SuperAdminAuthTest.php` covering login, anti-enumeration, throttling, clearing on success, subdomain rejection, profile retrieval, logout invalidation, and tenant user cross-guard isolation. Full test suite: 141 tests pass (687 assertions), Pint clean (123 files), PHPStan Level 8 0 errors, `composer ci` green.
 - `2026-10-26`: `feat/google-oauth`: Implemented Google OAuth with safe verified-email account linking. Added tenant migration `oauth_accounts` table, `Modules\Auth\Models\OAuthAccount` model and `TenantUser::$oauthAccounts` relation. Built `Modules\Auth\Services\GoogleAuthService` enforcing strict `email_verified === true` (rejects unverified Google emails with 403 `UNVERIFIED_OAUTH_EMAIL`), requires existing tenant user (rejects uninvited/unknown users with 404 `ACCOUNT_NOT_FOUND`), blocks deactivated accounts (403 `ACCOUNT_DEACTIVATED`), and auto-verifies unverified tenant email on verified Google OAuth match. Built `Modules\Auth\Http\Controllers\GoogleAuthController` (`GET /api/v1/auth/google/redirect` and `GET /api/v1/auth/google/callback`). Added 11 Pest tests covering all edge cases.
