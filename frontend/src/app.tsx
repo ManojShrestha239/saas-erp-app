@@ -11,9 +11,21 @@ createInertiaApp({
       './features/**/pages/**/*.tsx'
     );
 
-    // Resolve matching page component
+    const parts = name.split('/');
+    const target =
+      parts.length === 2
+        ? `./features/${parts[0]}/pages/${parts[1]}.tsx`
+        : `./features/${parts[0]}/pages/${parts[parts.length - 1]}.tsx`;
+
+    if (pages[target]) {
+      const page = await pages[target]!();
+      return (page.default || page) as React.ComponentType;
+    }
+
+    // Fallback: search by filename
+    const filename = parts[parts.length - 1];
     for (const path in pages) {
-      if (path.endsWith(`/${name}.tsx`)) {
+      if (path.endsWith(`/${filename}.tsx`)) {
         const page = await pages[path]!();
         return (page.default || page) as React.ComponentType;
       }

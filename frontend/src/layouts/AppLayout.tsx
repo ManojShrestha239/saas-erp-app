@@ -1,4 +1,5 @@
 import React from 'react';
+import { usePage } from '@inertiajs/react';
 import {
   LayoutDashboard,
   Package,
@@ -12,8 +13,11 @@ import {
   Search,
   User,
   Menu,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { useCan } from '@/features/auth/hooks/useCan';
+import type { SharedProps } from '@/shared/types/auth';
 
 export interface BreadcrumbItem {
   label: string;
@@ -33,18 +37,43 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   id: string;
+  permission?: string;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, id: 'dashboard' },
-  { name: 'Inventory', href: '/inventory', icon: Package, id: 'inventory' },
-  { name: 'Sales', href: '/sales', icon: ShoppingCart, id: 'sales' },
-  { name: 'Purchasing', href: '/purchasing', icon: FileText, id: 'purchasing' },
-  { name: 'Contacts', href: '/contacts', icon: Users, id: 'contacts' },
-  { name: 'Accounting', href: '/accounting', icon: BookOpen, id: 'accounting' },
-  { name: 'Reports', href: '/reports', icon: BarChart3, id: 'reports' },
-  { name: 'Settings', href: '/settings', icon: Settings, id: 'settings' },
+  { name: 'Inventory', href: '/inventory', icon: Package, id: 'inventory', permission: 'inventory.view' },
+  { name: 'Sales', href: '/sales', icon: ShoppingCart, id: 'sales', permission: 'sales.view' },
+  { name: 'Purchasing', href: '/purchasing', icon: FileText, id: 'purchasing', permission: 'purchases.view' },
+  { name: 'Contacts', href: '/contacts', icon: Users, id: 'contacts', permission: 'contacts.view' },
+  { name: 'Users', href: '/users', icon: Users, id: 'users', permission: 'users.manage' },
+  { name: 'Accounting', href: '/accounting', icon: BookOpen, id: 'accounting', permission: 'finance.view' },
+  { name: 'Reports', href: '/reports', icon: BarChart3, id: 'reports', permission: 'reports.view' },
+  { name: 'Settings', href: '/settings', icon: Settings, id: 'settings', permission: 'settings.manage' },
 ];
+
+function NavItemLink({ item, activeNav }: { item: NavItem; activeNav: string }) {
+  const canAccess = useCan(item.permission);
+  const hasPermission = !item.permission || canAccess;
+  if (!hasPermission) return null;
+
+  const isActive = item.id === activeNav;
+  const Icon = item.icon;
+  return (
+    <a
+      href={item.href}
+      className={cn(
+        'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors',
+        isActive
+          ? 'border-l-4 border-primary bg-primary/15 text-sidebar-foreground font-semibold pl-2'
+          : 'text-sidebar-foreground/80 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground'
+      )}
+    >
+      <Icon className="h-5 w-5 shrink-0" strokeWidth={1.5} />
+      <span>{item.name}</span>
+    </a>
+  );
+}
 
 export function AppLayout({
   children,
@@ -54,6 +83,24 @@ export function AppLayout({
   tenantName = 'Acme Corp',
 }: AppLayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const { props } = usePage<SharedProps>();
+  const user = props?.auth?.user ?? null;
+  const activeTenantName = props?.tenant?.slug || tenantName;
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/v1/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+      });
+      window.location.href = '/login';
+    } catch {
+      window.location.href = '/login';
+    }
+  };
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
@@ -87,42 +134,34 @@ export function AppLayout({
 
         {/* Navigation list */}
         <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.id === activeNav;
-            const Icon = item.icon;
-            return (
-              <a
-                key={item.id}
-                href={item.href}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors',
-                  isActive
-                    ? 'border-l-4 border-primary bg-primary/15 text-sidebar-foreground font-semibold pl-2'
-                    : 'text-sidebar-foreground/80 hover:bg-sidebar-foreground/10 hover:text-sidebar-foreground'
-                )}
-              >
-                <Icon className="h-5 w-5 shrink-0" strokeWidth={1.5} />
-                <span>{item.name}</span>
-              </a>
-            );
-          })}
+          {NAV_ITEMS.map((item) => (
+            <NavItemLink key={item.id} item={item} activeNav={activeNav} />
+          ))}
         </nav>
 
         {/* User / Tenant badge in sidebar footer */}
-        <div className="p-4 border-t border-sidebar-foreground/10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-foreground/15 text-sidebar-foreground">
+        <div className="p-4 border-t border-sidebar-foreground/10 flex items-center justify-between">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-foreground/15 text-sidebar-foreground">
               <User className="h-5 w-5" strokeWidth={1.5} />
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-sm font-semibold truncate text-sidebar-foreground">
-                {tenantName}
+                {user?.name || activeTenantName}
               </span>
               <span className="text-xs text-sidebar-foreground/60 truncate">
-                tenant_owner
+                {user?.roles[0] || 'Team Member'}
               </span>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleLogout}
+            title="Log out"
+            className="p-1.5 rounded-md text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-foreground/10 transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </aside>
 

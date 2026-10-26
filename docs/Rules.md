@@ -5,12 +5,11 @@
 ## 0. Session Protocol (do this every session)
 
 1. **Start:** read `Memory.md` first, then `Phases.md` (active phase only). Read `PRD.md`, `Architecture.md`, `Design.md` only for the parts relevant to the task. Do not re-scan the whole codebase.
-2. When executing destructive or external shell actions, always wrap the command inside `agy-guard '<command>'` instead of running directly.
-3. **Work on one task at a time**, from the active phase. Do not start the next phase until the current phase's exit criteria are met and the user confirms.
-4. **Before coding:** state your plan in 3–6 bullets (files you will create/edit). For anything touching money, tenancy, or auth, wait for approval.
-5. **After coding:** run tests/linters, then update `Memory.md` (status, decisions, blockers, next steps) and tick items in `Phases.md`.
-6. **Never invent** requirements, endpoints, columns, or packages. If something is unspecified, ask or list it in `PRD.md` → Open Questions.
-7. Keep changes small and reviewable: one concern per change, no drive-by refactors.
+2. **Work on one task at a time**, from the active phase. Do not start the next phase until the current phase's exit criteria are met and the user confirms.
+3. **Before coding:** state your plan in 3–6 bullets (files you will create/edit). For anything touching money, tenancy, or auth, wait for approval.
+4. **After coding:** run tests/linters, then update `Memory.md` (status, decisions, blockers, next steps) and tick items in `Phases.md`.
+5. **Never invent** requirements, endpoints, columns, or packages. If something is unspecified, ask or list it in `PRD.md` → Open Questions.
+6. Keep changes small and reviewable: one concern per change, no drive-by refactors.
 
 ## 1. Strict Typing & Code Quality
 

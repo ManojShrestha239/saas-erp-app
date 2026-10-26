@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Shared\Exceptions\ApiExceptionRenderer;
 use Shared\Http\Middleware\EnsureCentralDomain;
 use Shared\Http\Middleware\EnsureJsonRequest;
+use Shared\Http\Middleware\HandleInertiaRequests;
 use Shared\Http\Middleware\IdentifyTenant;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -17,6 +18,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->web(append: [
+            HandleInertiaRequests::class,
+        ]);
+
         $middleware->api(prepend: [
             EnsureJsonRequest::class,
         ]);
