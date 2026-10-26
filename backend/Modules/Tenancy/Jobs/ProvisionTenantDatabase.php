@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Tenancy\Jobs;
 
+use Database\Seeders\TenantRolePermissionSeeder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\DatabaseManager;
@@ -164,23 +165,7 @@ final class ProvisionTenantDatabase implements ShouldQueue
 
     private function seedDefaultRoles(DatabaseManager $databaseManager): void
     {
-        $roles = [
-            ['name' => 'owner', 'display_name' => 'Owner'],
-            ['name' => 'admin', 'display_name' => 'Administrator'],
-            ['name' => 'staff', 'display_name' => 'Staff'],
-            ['name' => 'accountant', 'display_name' => 'Accountant'],
-            ['name' => 'warehouse', 'display_name' => 'Warehouse Manager'],
-        ];
-
-        foreach ($roles as $role) {
-            $databaseManager->connection('tenant')
-                ->table('roles')
-                ->insertOrIgnore([
-                    ...$role,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-        }
+        (new TenantRolePermissionSeeder)->run();
     }
 
     private function seedDefaultSettings(DatabaseManager $databaseManager): void
@@ -207,27 +192,27 @@ final class ProvisionTenantDatabase implements ShouldQueue
 
     private function createOwnerUser(DatabaseManager $databaseManager): void
     {
-        $exists = $databaseManager->connection('tenant')
+        $existingUserId = $databaseManager->connection('tenant')
             ->table('users')
             ->where('email', $this->ownerEmail)
-            ->exists();
+            ->value('id');
 
-        if ($exists) {
-            return;
+        if ($existingUserId === null) {
+            $userId = (string) Str::ulid();
+
+            $databaseManager->connection('tenant')
+                ->table('users')
+                ->insert([
+                    'id' => $userId,
+                    'name' => $this->ownerName,
+                    'email' => $this->ownerEmail,
+                    'password' => Hash::make(Str::random(32)), // Random password; reset via email in full auth flow
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+        } else {
+            $userId = (string) $existingUserId;
         }
-
-        $userId = (string) Str::ulid();
-
-        $databaseManager->connection('tenant')
-            ->table('users')
-            ->insert([
-                'id' => $userId,
-                'name' => $this->ownerName,
-                'email' => $this->ownerEmail,
-                'password' => Hash::make(Str::random(32)), // Random password; reset via email in full auth flow
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
 
         // Assign owner role
         $roleId = $databaseManager->connection('tenant')
@@ -236,12 +221,24 @@ final class ProvisionTenantDatabase implements ShouldQueue
             ->value('id');
 
         if ($roleId !== null) {
+            // Spatie model_has_roles
             $databaseManager->connection('tenant')
-                ->table('user_roles')
+                ->table('model_has_roles')
                 ->insertOrIgnore([
-                    'user_id' => $userId,
                     'role_id' => $roleId,
+                    'model_type' => 'Modules\Auth\Models\TenantUser',
+                    'model_id' => $userId,
                 ]);
+
+            // Legacy user_roles table if present
+            if ($databaseManager->connection('tenant')->getSchemaBuilder()->hasTable('user_roles')) {
+                $databaseManager->connection('tenant')
+                    ->table('user_roles')
+                    ->insertOrIgnore([
+                        'user_id' => $userId,
+                        'role_id' => $roleId,
+                    ]);
+            }
         }
 
         Log::info('ProvisionTenantDatabase: owner user created', [

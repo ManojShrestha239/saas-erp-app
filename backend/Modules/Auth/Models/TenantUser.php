@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Modules\Auth\Models;
 
 use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Auth\Access\Authorizable;
 use Illuminate\Support\Carbon;
 use Shared\Tenancy\UsesTenantConnection;
+use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property string $id
@@ -20,10 +23,14 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-final class TenantUser extends Model implements AuthenticatableContract
+final class TenantUser extends Model implements AuthenticatableContract, AuthorizableContract
 {
     use Authenticatable;
+    use Authorizable;
+    use HasRoles;
     use UsesTenantConnection;
+
+    protected string $guard_name = 'web';
 
     protected $table = 'users';
 

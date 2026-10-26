@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 2: Authentication & User Provisioning
-- **Last Completed Task:** `feat/password-reset-verification`: Implemented password reset and email verification for tenants. Created `POST /api/v1/auth/password/email` (anti-enumeration with identical response, throttled per tenant/IP), `POST /api/v1/auth/password/reset` (uses shared `PasswordRule` with 12+ chars, 1 letter, 1 number; single-use hashed token; revokes active sessions; does not auto-login), `POST /api/v1/auth/email/verify` (sets `email_verified_at`, single-use hashed token), and `POST /api/v1/auth/email/resend` (throttled per tenant/IP). Hashed tokens stored on tenant connection (`database/migrations/tenant/`). Queued jobs `SendPasswordResetEmail` and `SendEmailVerificationEmail` carry tenant context. Enforced email verification requirement on login when configured. 102 Pest tests pass (440 assertions), 0 Pint issues, 0 PHPStan errors at Level 8, `composer ci` green.
-- **Current Focus:** User review of `feat/password-reset-verification`, followed by approval to commit and merge to `develop`.
-- **Working branch:** `feat/password-reset-verification`
+- **Last Completed Task:** `feat/spatie-rbac-permissions`: Integrated `spatie/laravel-permission` with custom `Role`, `Permission`, and `TenantPermissionRegistrar` ensuring tenant-isolated caching (`spatie.permission.cache:{tenant_id}`). Defined `TenantRole` and `TenantPermission` enums encoding the exact PRD §2.1 permission matrix. Added forward-only migration `2026_10_26_000003_create_permission_tables.php` supporting ULID model keys. Added `Authorizable` and `HasRoles` traits to `TenantUser`. Added `TenantRolePermissionSeeder` and updated `ProvisionTenantDatabase` to seed permissions/roles and assign Owner role to tenant creators. Added 7 Pest tests in `tests/Feature/Auth/RbacTest.php`. 109 Pest tests pass (544 assertions), 0 Pint issues, 0 PHPStan errors at Level 8, `composer ci` green.
+- **Current Focus:** User review of `feat/spatie-rbac-permissions`, followed by approval to commit and merge to `develop`.
+- **Working branch:** `feat/spatie-rbac-permissions`
 
 ## Architectural Decisions (Decision Log)
 
@@ -35,6 +35,7 @@
 | 13  | Provisioning database user requires only `CREATEDB` privilege in production (tied to Phase 7 deployment checklist) | Prevents superuser exposure and enforces least privilege; database creation succeeds without granting full administrative privileges; verification of dedicated non-superuser role added to Phase 7 release checklist |
 | 14  | Tenant-scoped session auth: host-only cookie (`SESSION_DOMAIN=null`), `web` guard resolves `tenant_users` via `UsesTenantConnection`, `tenant_id` session binding with `EnsureTenantSession` rejecting cross-tenant sessions | Defense-in-depth against cross-tenant session hijacking; browser enforces origin separation; middleware guarantees session validity across subdomains |
 | 15  | Password reset tokens and email verification tokens hashed (SHA-256) in tenant DB; defaults: 60-minute token expiry, email verification required before login for tenant users (`auth.require_email_verification`), password reset revokes all active sessions across the session driver store, and mail is logged to file in development (`MAIL_MAILER=log`). | High entropy single-use tokens prevent token theft and replay; cross-device session destruction terminates active access upon credential changes; development file logging prevents accidental dispatch. |
+| 16  | Tenant-isolated Spatie RBAC: `TenantPermissionRegistrar` isolates cache by tenant ID (`spatie.permission.cache:{tenant_id}`); `TenantUser`, `Role`, and `Permission` use `UsesTenantConnection`; pivot `model_id` uses string(36) for ULIDs. | Guarantees zero cross-tenant role/permission leakage across concurrent requests or multi-tenant background commands; preserves ULID model identity; aligns with database-per-tenant architecture. |
 
 ## Conventions Locked In
 
@@ -55,14 +56,28 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/auth-email-password`.
-2. Continue Phase 2: Password reset & email verification or Google OAuth / Spatie RBAC.
+1. Await user review and approval to commit and merge `feat/spatie-rbac-permissions`.
+2. Continue Phase 2: Google OAuth with verified email account linking or Tenant user management UI & API.
 
 ## Key Files Touched (latest)
 
+- `backend/Modules/Auth/Enums/TenantPermission.php`
+- `backend/Modules/Auth/Enums/TenantRole.php`
+- `backend/Modules/Auth/Models/Permission.php`
+- `backend/Modules/Auth/Models/Role.php`
 - `backend/Modules/Auth/Models/TenantUser.php`
-- `backend/Modules/Auth/Http/Controllers/AuthController.php`
-- `backend/Modules/Auth/Http/Requests/LoginRequest.php`
+- `backend/Modules/Auth/Services/TenantPermissionRegistrar.php`
+- `backend/Modules/Auth/Providers/AuthServiceProvider.php`
+- `backend/Shared/Tenancy/TenantManager.php`
+- `backend/database/migrations/tenant/2026_10_26_000003_create_permission_tables.php`
+- `backend/database/seeders/TenantRolePermissionSeeder.php`
+- `backend/Modules/Tenancy/Jobs/ProvisionTenantDatabase.php`
+- `backend/config/permission.php`
+- `backend/tests/Feature/Auth/RbacTest.php`
+
+## Session Log (newest first)
+
+- `2026-10-26`: `feat/spatie-rbac-permissions`: Installed `spatie/laravel-permission` v8.3.2. Published and configured `config/permission.php` with custom models `Modules\Auth\Models\Role` and `Modules\Auth\Models\Permission` using `UsesTenantConnection` and default model `TenantUser`. Implemented `TenantPermissionRegistrar` extending Spatie's registrar to dynamically isolate cache keys by tenant ID (`spatie.permission.cache:{tenant_id}`) and flush stale in-memory collections upon tenant switching or cache reloads. Created `TenantRole` (Owner, Admin, Staff, Accountant, WarehouseManager, SalesRep) and `TenantPermission` backed enums matching the exact PRD §2.1 permission matrix. Added forward-only migration `2026_10_26_000003_create_permission_tables.php` in `backend/database/migrations/tenant/` using `Schema::connection('tenant')` and string(36) `model_id` to accommodate ULIDs. Added `Authorizable` and `HasRoles` traits to `TenantUser` with `$guard_name = 'web'`. Created `TenantRolePermissionSeeder` in `Database\Seeders\` and wired `ProvisionTenantDatabase` to seed permissions/roles and assign the `TenantRole::Owner` role to newly created tenant owners. Added 7 Pest tests in `tests/Feature/Auth/RbacTest.php` covering provisioning role assignment, PRD matrix permission checks, tenant isolation, dynamic role revocation, and direct permission assignment. Full test suite passes with 109 tests (544 assertions), Pint 0 issues, PHPStan level 8 0 errors, `composer ci` green.
 - `backend/Modules/Auth/Http/Resources/UserResource.php`
 - `backend/Modules/Auth/Http/Middleware/EnsureTenantSession.php`
 - `backend/Modules/Auth/Providers/AuthServiceProvider.php`

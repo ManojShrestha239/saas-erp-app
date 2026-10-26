@@ -22,9 +22,9 @@
 ## Phase 2: Authentication & User Provisioning
 
 - [ ] Email/password login, logout, password reset, email verification (Sanctum + Inertia).
-- [ ] Login throttling and session handling per tenant.
+- [x] Login throttling and session handling per tenant.
 - [ ] Google OAuth with safe account linking (verified email only).
-- [ ] Spatie Laravel Permission: roles (Super Admin, Tenant Owner, Accountant, Warehouse Manager, Sales Rep) and the PRD permission matrix.
+- [x] Spatie Laravel Permission: roles (Super Admin, Tenant Owner, Accountant, Warehouse Manager, Sales Rep) and the PRD permission matrix.
 - [ ] Tenant user management UI (invite, role assign, deactivate) with package user-limit enforcement.
 - [ ] Super Admin authentication on the central domain.
 - [ ] Frontend: auth pages, protected routes, permission-aware navigation (`useCan`).

@@ -7,6 +7,7 @@ namespace Shared\Tenancy;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\DatabaseManager;
+use Spatie\Permission\PermissionRegistrar;
 
 final class TenantManager
 {
@@ -24,6 +25,10 @@ final class TenantManager
         $this->databaseManager->reconnect('tenant');
 
         TenantContext::set($context);
+
+        if (function_exists('app') && app()->bound(PermissionRegistrar::class)) {
+            app(PermissionRegistrar::class)->initializeCache();
+        }
     }
 
     public function switch(TenantContext $context): void
@@ -53,5 +58,9 @@ final class TenantManager
         $this->databaseManager->purge('tenant');
 
         TenantContext::set(null);
+
+        if (function_exists('app') && app()->bound(PermissionRegistrar::class)) {
+            app(PermissionRegistrar::class)->initializeCache();
+        }
     }
 }
