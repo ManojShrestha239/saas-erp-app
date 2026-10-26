@@ -142,14 +142,21 @@ final class ProvisionTenantDatabase implements ShouldQueue
     private function runTenantMigrations(): void
     {
         // Run all tenant migrations — migrations are idempotent by design
-        $exitCode = Artisan::call('migrate', [
-            '--database' => 'tenant',
-            '--path' => 'Modules/Tenancy/Database/Migrations',
-            '--force' => true,
-        ]);
+        $paths = [
+            'Modules/Tenancy/Database/Migrations',
+            'database/migrations/tenant',
+        ];
 
-        if ($exitCode !== 0) {
-            throw new \RuntimeException('Tenant migration failed with exit code '.$exitCode.': '.trim(Artisan::output()));
+        foreach ($paths as $path) {
+            $exitCode = Artisan::call('migrate', [
+                '--database' => 'tenant',
+                '--path' => $path,
+                '--force' => true,
+            ]);
+
+            if ($exitCode !== 0) {
+                throw new \RuntimeException('Tenant migration failed with exit code '.$exitCode.': '.trim(Artisan::output()));
+            }
         }
 
         Log::info('ProvisionTenantDatabase: tenant migrations ran', ['tenant_id' => $this->tenantId]);

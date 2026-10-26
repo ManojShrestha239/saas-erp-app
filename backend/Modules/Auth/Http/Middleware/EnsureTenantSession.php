@@ -6,6 +6,7 @@ namespace Modules\Auth\Http\Middleware;
 
 use Closure;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Shared\Tenancy\TenantContext;
@@ -29,6 +30,19 @@ final class EnsureTenantSession
                 $request->session()->regenerateToken();
 
                 throw new AuthenticationException('Unauthenticated.');
+            }
+
+            /** @var Authenticatable|null $user */
+            $user = Auth::guard('web')->user();
+            if ($user !== null) {
+                $storedHash = $request->session()->get('auth_password_hash');
+                if (! is_string($storedHash) || $storedHash !== $user->getAuthPassword()) {
+                    Auth::guard('web')->logout();
+                    $request->session()->invalidate();
+                    $request->session()->regenerateToken();
+
+                    throw new AuthenticationException('Unauthenticated.');
+                }
             }
         }
 

@@ -168,14 +168,15 @@ final class TenantsMigrateCommand extends Command
     private function getMigrationPaths(): array
     {
         $pattern = base_path('Modules/*/Database/Migrations');
-        $paths = glob($pattern);
+        $paths = glob($pattern) ?: [];
 
-        if ($paths === false) {
-            return [];
+        $tenantPath = base_path('database/migrations/tenant');
+        if (is_dir($tenantPath)) {
+            $paths[] = $tenantPath;
         }
 
         /** @var list<string> $validPaths */
-        $validPaths = array_values(array_filter($paths, 'is_dir'));
+        $validPaths = array_values(array_filter(array_unique($paths), 'is_dir'));
 
         return $validPaths;
     }

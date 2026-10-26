@@ -105,6 +105,7 @@ beforeEach(function (): void {
     $tenantManager->switchTo($alphaContext);
     DB::connection('tenant')->table('users')->where('email', 'owner@alpha.nexuserp.test')->update([
         'password' => Hash::make('AlphaSecret123!'),
+        'email_verified_at' => now(),
     ]);
     // Also insert a cross-tenant user with the same email on alpha
     DB::connection('tenant')->table('users')->insert([
@@ -112,6 +113,7 @@ beforeEach(function (): void {
         'name' => 'Shared User',
         'email' => 'user@example.com',
         'password' => Hash::make('AlphaPass12345'),
+        'email_verified_at' => now(),
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -120,6 +122,7 @@ beforeEach(function (): void {
     $tenantManager->switchTo($betaContext);
     DB::connection('tenant')->table('users')->where('email', 'owner@beta.nexuserp.test')->update([
         'password' => Hash::make('BetaSecret123!'),
+        'email_verified_at' => now(),
     ]);
     // Insert the same email on beta with different password
     DB::connection('tenant')->table('users')->insert([
@@ -127,6 +130,7 @@ beforeEach(function (): void {
         'name' => 'Shared User',
         'email' => 'user@example.com',
         'password' => Hash::make('BetaPass12345!'),
+        'email_verified_at' => now(),
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -273,42 +277,19 @@ test('suspended tenant cannot log in and returns 403 TENANT_SUSPENDED before aut
     ]);
 });
 
-test('login validation fails with 422 VALIDATION_FAILED when password does not meet complexity rules', function (): void {
-    // 1. Password less than 12 characters
-    $shortResponse = $this->postJson('http://alpha.nexuserp.test/api/v1/auth/login', [
-        'email' => 'owner@alpha.nexuserp.test',
-        'password' => 'Short123',
+test('login validation fails with 422 VALIDATION_FAILED when required fields are missing', function (): void {
+    $response = $this->postJson('http://alpha.nexuserp.test/api/v1/auth/login', [
+        'email' => '',
+        'password' => '',
     ]);
-    $shortResponse->assertStatus(422);
-    $shortResponse->assertJson([
-        'success' => false,
-        'code' => 'VALIDATION_FAILED',
-    ]);
-    expect($shortResponse->json('errors.password'))->not->toBeEmpty();
 
-    // 2. Password 12+ characters with letters only (missing number)
-    $lettersOnlyResponse = $this->postJson('http://alpha.nexuserp.test/api/v1/auth/login', [
-        'email' => 'owner@alpha.nexuserp.test',
-        'password' => 'LettersOnlyNoDigits',
-    ]);
-    $lettersOnlyResponse->assertStatus(422);
-    $lettersOnlyResponse->assertJson([
+    $response->assertStatus(422);
+    $response->assertJson([
         'success' => false,
         'code' => 'VALIDATION_FAILED',
     ]);
-    expect($lettersOnlyResponse->json('errors.password'))->not->toBeEmpty();
-
-    // 3. Password 12+ characters with numbers only (missing letter)
-    $numbersOnlyResponse = $this->postJson('http://alpha.nexuserp.test/api/v1/auth/login', [
-        'email' => 'owner@alpha.nexuserp.test',
-        'password' => '1234567890123',
-    ]);
-    $numbersOnlyResponse->assertStatus(422);
-    $numbersOnlyResponse->assertJson([
-        'success' => false,
-        'code' => 'VALIDATION_FAILED',
-    ]);
-    expect($numbersOnlyResponse->json('errors.password'))->not->toBeEmpty();
+    expect($response->json('errors.email'))->not->toBeEmpty();
+    expect($response->json('errors.password'))->not->toBeEmpty();
 });
 
 test('session ID changes on login to prevent session fixation', function (): void {

@@ -7,6 +7,7 @@ namespace Modules\Auth\Http\Controllers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Modules\Auth\Http\Requests\LoginRequest;
@@ -54,11 +55,26 @@ final class AuthController
             );
         }
 
+        if (config('auth.require_email_verification', true) && $user->email_verified_at === null) {
+            return ApiResponse::error(
+                message: 'Your email address is not verified.',
+                code: 'EMAIL_NOT_VERIFIED',
+                status: HttpStatus::FORBIDDEN,
+            );
+        }
+
         RateLimiter::clear($throttleKey);
 
         $request->session()->regenerate(true);
         Auth::guard('web')->login($user);
         $request->session()->put('tenant_id', $tenantId);
+        $request->session()->put('auth_password_hash', $user->getAuthPassword());
+
+        $userSessionsKey = "user_sessions:{$tenantId}:{$user->id}";
+        /** @var list<string> $sessionIds */
+        $sessionIds = Cache::get($userSessionsKey, []);
+        $sessionIds[] = $request->session()->getId();
+        Cache::put($userSessionsKey, array_values(array_unique($sessionIds)), now()->addMinutes((int) config('session.lifetime', 120)));
 
         return ApiResponse::success(
             data: [
@@ -70,6 +86,24 @@ final class AuthController
 
     public function logout(Request $request): JsonResponse
     {
+        $context = TenantContext::get();
+        $tenantId = $context !== null ? (string) $context->id : 'unknown';
+        /** @var TenantUser|null $user */
+        $user = Auth::guard('web')->user();
+
+        if ($user !== null && $request->hasSession()) {
+            $userSessionsKey = "user_sessions:{$tenantId}:{$user->id}";
+            /** @var list<string> $sessionIds */
+            $sessionIds = Cache::get($userSessionsKey, []);
+            $currentId = $request->session()->getId();
+            $sessionIds = array_values(array_filter($sessionIds, fn (string $id): bool => $id !== $currentId));
+            if (! empty($sessionIds)) {
+                Cache::put($userSessionsKey, $sessionIds, now()->addMinutes((int) config('session.lifetime', 120)));
+            } else {
+                Cache::forget($userSessionsKey);
+            }
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

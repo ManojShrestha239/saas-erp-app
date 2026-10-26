@@ -15,6 +15,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property string $name
  * @property string $email
  * @property string $password
+ * @property Carbon|null $email_verified_at
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -46,5 +47,12 @@ final class TenantUser extends Model implements AuthenticatableContract
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    /**
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'email_verified_at' => 'datetime',
     ];
 }

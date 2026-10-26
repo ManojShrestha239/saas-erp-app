@@ -124,4 +124,16 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Require Email Verification
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, tenant users must have a verified email address before
+    | they are permitted to log in via the session-based tenant auth flow.
+    |
+    */
+
+    'require_email_verification' => (bool) env('AUTH_REQUIRE_EMAIL_VERIFICATION', true),
+
 ];
