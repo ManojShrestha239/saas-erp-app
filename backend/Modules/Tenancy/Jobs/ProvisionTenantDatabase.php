@@ -143,15 +143,35 @@ final class ProvisionTenantDatabase implements ShouldQueue
     private function runTenantMigrations(): void
     {
         // Run all tenant migrations — migrations are idempotent by design
-        $paths = [
-            'Modules/Tenancy/Database/Migrations',
-            'database/migrations/tenant',
-        ];
+        $pattern = base_path('Modules/*/Database/Migrations');
+        $modulePaths = glob($pattern) ?: [];
 
-        foreach ($paths as $path) {
+        $tenancyPath = base_path('Modules/Tenancy/Database/Migrations');
+        $otherModulePaths = array_values(array_filter(
+            $modulePaths,
+            static fn (string $p): bool => $p !== $tenancyPath
+        ));
+
+        $paths = [];
+        if (is_dir($tenancyPath)) {
+            $paths[] = $tenancyPath;
+        }
+        $tenantPath = base_path('database/migrations/tenant');
+        if (is_dir($tenantPath)) {
+            $paths[] = $tenantPath;
+        }
+        foreach ($otherModulePaths as $p) {
+            $paths[] = $p;
+        }
+
+        /** @var list<string> $validPaths */
+        $validPaths = array_values(array_filter(array_unique($paths), 'is_dir'));
+
+        foreach ($validPaths as $path) {
             $exitCode = Artisan::call('migrate', [
                 '--database' => 'tenant',
                 '--path' => $path,
+                '--realpath' => true,
                 '--force' => true,
             ]);
 
