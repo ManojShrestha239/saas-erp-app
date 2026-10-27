@@ -33,7 +33,7 @@
 ## Phase 3: Core Inventory & Contact Management
 
 - [x] Product catalog: SKU, barcode, category, UoM, cost/sell price (cents), tax category, low-stock threshold.
-- [ ] Warehouses; append-only `stock_movements` + `stock_levels`.
+- [x] Warehouses; append-only `stock_movements` + `stock_levels`.
 - [ ] Manual stock adjustments with reason (ledger posting hook stubbed until Phase 5).
 - [ ] Customer & Supplier directories with opening balances, payment terms, credit limit.
 - [ ] Reusable `DataTable` (TanStack): server-side sort/filter/paginate, column visibility, sticky header.

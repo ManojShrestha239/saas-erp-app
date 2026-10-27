@@ -9,7 +9,9 @@ use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Modules\Inventory\Http\Controllers\CategoryController;
 use Modules\Inventory\Http\Controllers\ProductController;
+use Modules\Inventory\Http\Controllers\StockController;
 use Modules\Inventory\Http\Controllers\UnitOfMeasureController;
+use Modules\Inventory\Http\Controllers\WarehouseController;
 
 Route::middleware([
     'identify.tenant',
@@ -22,4 +24,10 @@ Route::middleware([
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('units-of-measure', UnitOfMeasureController::class);
     Route::apiResource('products', ProductController::class);
+    Route::apiResource('warehouses', WarehouseController::class);
+
+    Route::get('stock-levels', [StockController::class, 'levels'])->name('stock-levels.index');
+    Route::get('stock-levels/{warehouse}/{product}', [StockController::class, 'levelDetail'])->name('stock-levels.detail');
+    Route::get('stock-movements', [StockController::class, 'movements'])->name('stock-movements.index');
+    Route::post('stock-movements', [StockController::class, 'recordMovement'])->name('stock-movements.store');
 });
