@@ -12,9 +12,9 @@
 ## Current Status
 
 - **Active Phase:** Phase 3: Core Inventory & Contact Management
-- **Last Completed Task:** `feat/warehouse-stock-movements`: Warehouses, append-only `stock_movements` + cached `stock_levels` (`Modules/Inventory`). Built forward-only tenant migrations for `warehouses`, `stock_movements` (append-only ledger: ULID, warehouse_id, product_id, type, quantity, unit_cost_cents, source_type/id, user_id, notes, created_at), and `stock_levels` (cached balances: compound unique index on warehouse_id + product_id, quantity_on_hand, quantity_reserved). Created domain models with `UsesTenantConnection` and `HasUlids`, backed enum `StockMovementType`, DTOs, `WarehouseService` (default warehouse switching, validation) and `StockService` with `DB::transaction(..., 3)`, row-level locking (`lockForUpdate()`), and negative stock prevention against tenant setting `allow_negative_stock`. Implemented thin controllers (`WarehouseController`, `StockController`), Form Requests, API resources adhering to the standard envelope, and policies enforcing PRD §2.1 RBAC (`stock.view`, `stock.adjust`, `products.manage`). Added 6 Pest tests in `tests/Feature/Inventory/WarehouseStockTest.php` covering CRUD, default toggles, atomic movement/level sync, negative stock blocking/allowing, and cross-tenant isolation. Full suite: 162 backend tests passing (925 assertions), Pint clean (184 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean.
-- **Current Focus:** User review and approval to commit and merge `feat/warehouse-stock-movements` to `develop`, followed by proposing next Phase 3 task: Manual stock adjustments with reason.
-- **Working branch:** `feat/warehouse-stock-movements`
+- **Last Completed Task:** `feat/stock-adjustments`: Manual stock adjustments with mandatory reason (with ledger posting hook stubbed until Phase 5) in `Modules/Inventory`. Built forward-only tenant migrations for `stock_adjustments` and `stock_adjustment_items`. Implemented domain models `StockAdjustment` and `StockAdjustmentItem` (`UsesTenantConnection`, `HasUlids`), readonly DTOs `CreateStockAdjustmentData` and `StockAdjustmentItemData`, domain event `StockAdjusted` for Phase 5 GL hook, and `StockAdjustmentService` operating within `DB::connection('tenant')->transaction(..., 3)` integrating atomically with `StockService::recordMovement` with pessimistic row locking (`lockForUpdate()`), cost impact calculation, sequential document numbering (`ADJ-YYYY-000001`), and negative stock enforcement. Created `StockAdjustmentPolicy` (RBAC `stock.view` to read; `stock.adjust`/`products.manage` to create), `StoreStockAdjustmentRequest`, API Resources (`StockAdjustmentResource`, `StockAdjustmentItemResource`), and `StockAdjustmentController` endpoints (`GET /api/v1/inventory/adjustments`, `POST /api/v1/inventory/adjustments`, `GET /api/v1/inventory/adjustments/{id}`). Added 7 comprehensive Pest feature tests in `tests/Feature/Inventory/StockAdjustmentTest.php`. Full suite: 169 backend tests passing (1,004 assertions), Pint clean (198 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean.
+- **Current Focus:** User review and approval to commit and merge `feat/stock-adjustments` to `develop`, followed by proposing next Phase 3 task: Customer & Supplier directories with opening balances, payment terms, credit limit.
+- **Working branch:** `feat/stock-adjustments`
 
 ## Architectural Decisions (Decision Log)
 
@@ -42,6 +42,7 @@
 | 20  | Inertia frontend auth pages & lazy props: Inertia root view `app.blade.php` and `HandleInertiaRequests` middleware lazy-evaluates `auth.user` and `tenant` via Closures after `identify.tenant` route middleware sets `TenantContext`; client-side RBAC enforced via `useCan` hook and `<Can>` wrapper component checking both permissions and roles case-insensitively; full sidebar navigation filtered by `useCan`. | Guarantees tenant context and active tenant connection are cleanly resolved before props are shared; prevents concrete model coupling in `Shared/` (preserving Arch tests); ensures granular client-side permission-gated navigation and actions. |
 | 21  | Product catalog architecture in `Modules\Inventory`: integer-cent money fields (`cost_price_cents`, `selling_price_cents` as `BIGINT`), tenant-scoped unique SKU, ULID IDs, forward-only tenant migrations dynamically discovered in `ProvisionTenantDatabase`, and strict RBAC policy checks against `products.view` and `products.manage`. | Guarantees zero floating-point inaccuracies, strict tenant isolation and ULID performance; ensures dynamic execution of module migrations during provisioning without manual array maintenance; enforces RBAC matrix per PRD §2.1. |
 | 22  | Stock engine architecture in `Modules\Inventory`: append-only `stock_movements` table (`created_at` only, no `updated_at`), cached `stock_levels` table (`[warehouse_id, product_id]` compound unique constraint), updated atomically inside `DB::transaction(..., 3)` with pessimistic row-locking (`lockForUpdate()`), and negative stock prevention enforced server-side against tenant setting `allow_negative_stock`. | Concurrency-safe inventory balances without race conditions; immutable audit trail of all quantity deltas; rapid O(1) cached reads for on-hand and available levels; strict adherence to PRD §3.4 acceptance criteria. |
+| 23  | Manual stock adjustments architecture in `Modules\Inventory`: header-line pattern (`stock_adjustments` + `stock_adjustment_items`), atomic sync with `stock_movements` and `stock_levels` via `StockService`, sequential document numbers (`ADJ-YYYY-000001`), line and total cost impact tracking in minor units (`*_cents` BIGINT), mandatory reasons, and decoupled `StockAdjusted` domain event for Phase 5 General Ledger posting. | Ensures auditability, financial accuracy without floats, pessimistic concurrency safety, and seamless accounting integration when Phase 5 GL posting is enabled. |
 
 ## Conventions Locked In
 
@@ -62,40 +63,31 @@
 
 ## Next Steps
 
-1. Await user commit and merge of `feat/warehouse-stock-movements` into `develop`.
-2. Propose next task in Phase 3: Manual stock adjustments with reason (ledger posting hook stubbed until Phase 5).
+1. Await user commit and merge of `feat/stock-adjustments` into `develop`.
+2. Propose next task in Phase 3: Customer & Supplier directories with opening balances, payment terms, credit limit.
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Inventory/Database/Migrations/2026_10_27_000001_create_inventory_warehouses_table.php`
-- `backend/Modules/Inventory/Database/Migrations/2026_10_27_000002_create_inventory_stock_movements_table.php`
-- `backend/Modules/Inventory/Database/Migrations/2026_10_27_000003_create_inventory_stock_levels_table.php`
-- `backend/Modules/Inventory/Models/Warehouse.php`
-- `backend/Modules/Inventory/Models/StockMovement.php`
-- `backend/Modules/Inventory/Models/StockLevel.php`
-- `backend/Modules/Inventory/Models/Product.php`
-- `backend/Modules/Inventory/Enums/StockMovementType.php`
-- `backend/Modules/Inventory/DTOs/CreateWarehouseData.php`
-- `backend/Modules/Inventory/DTOs/UpdateWarehouseData.php`
-- `backend/Modules/Inventory/DTOs/RecordStockMovementData.php`
-- `backend/Modules/Inventory/Services/WarehouseService.php`
-- `backend/Modules/Inventory/Services/StockService.php`
-- `backend/Modules/Inventory/Policies/WarehousePolicy.php`
-- `backend/Modules/Inventory/Policies/StockPolicy.php`
-- `backend/Modules/Inventory/Http/Requests/StoreWarehouseRequest.php`
-- `backend/Modules/Inventory/Http/Requests/UpdateWarehouseRequest.php`
-- `backend/Modules/Inventory/Http/Requests/RecordStockMovementRequest.php`
-- `backend/Modules/Inventory/Http/Resources/WarehouseResource.php`
-- `backend/Modules/Inventory/Http/Resources/StockLevelResource.php`
-- `backend/Modules/Inventory/Http/Resources/StockMovementResource.php`
-- `backend/Modules/Inventory/Http/Controllers/WarehouseController.php`
-- `backend/Modules/Inventory/Http/Controllers/StockController.php`
+- `backend/Modules/Inventory/Database/Migrations/2026_10_27_000004_create_inventory_stock_adjustments_table.php`
+- `backend/Modules/Inventory/Database/Migrations/2026_10_27_000005_create_inventory_stock_adjustment_items_table.php`
+- `backend/Modules/Inventory/Models/StockAdjustment.php`
+- `backend/Modules/Inventory/Models/StockAdjustmentItem.php`
+- `backend/Modules/Inventory/Events/StockAdjusted.php`
+- `backend/Modules/Inventory/DTOs/StockAdjustmentItemData.php`
+- `backend/Modules/Inventory/DTOs/CreateStockAdjustmentData.php`
+- `backend/Modules/Inventory/Services/StockAdjustmentService.php`
+- `backend/Modules/Inventory/Policies/StockAdjustmentPolicy.php`
+- `backend/Modules/Inventory/Http/Requests/StoreStockAdjustmentRequest.php`
+- `backend/Modules/Inventory/Http/Resources/StockAdjustmentResource.php`
+- `backend/Modules/Inventory/Http/Resources/StockAdjustmentItemResource.php`
+- `backend/Modules/Inventory/Http/Controllers/StockAdjustmentController.php`
 - `backend/Modules/Inventory/Routes/api.php`
 - `backend/Modules/Inventory/Providers/InventoryServiceProvider.php`
-- `backend/tests/Feature/Inventory/WarehouseStockTest.php`
+- `backend/tests/Feature/Inventory/StockAdjustmentTest.php`
 
 ## Session Log (newest first)
 
+- `2026-10-27`: `feat/stock-adjustments`: Implemented Manual Stock Adjustments with mandatory reason and ledger posting hook in `Modules/Inventory`. Built forward-only tenant migrations for `stock_adjustments` and `stock_adjustment_items`. Implemented domain models `StockAdjustment` and `StockAdjustmentItem` (`UsesTenantConnection`, `HasUlids`), readonly DTOs `CreateStockAdjustmentData` and `StockAdjustmentItemData`, domain event `StockAdjusted` with tenant context for Phase 5 GL hook, and `StockAdjustmentService` operating within `DB::connection('tenant')->transaction(..., 3)` integrating atomically with `StockService::recordMovement` with pessimistic row locking (`lockForUpdate()`), cost impact calculation, sequential document numbering (`ADJ-YYYY-000001`), and negative stock enforcement. Created `StockAdjustmentPolicy` (RBAC `stock.view` to read; `stock.adjust`/`products.manage` to create), `StoreStockAdjustmentRequest`, API Resources (`StockAdjustmentResource`, `StockAdjustmentItemResource`), and `StockAdjustmentController` endpoints (`GET /api/v1/inventory/adjustments`, `POST /api/v1/inventory/adjustments`, `GET /api/v1/inventory/adjustments/{id}`). Added 7 comprehensive Pest feature tests in `tests/Feature/Inventory/StockAdjustmentTest.php`. Full suite: 169 backend tests passing (1,004 assertions), Pint clean (198 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean. Ticked Phase 3 item.
 - `2026-10-27`: `feat/warehouse-stock-movements`: Implemented Warehouses, Append-Only Stock Movements & Cached Stock Levels in `Modules/Inventory`. Added tenant migrations for `warehouses`, `stock_movements` (append-only ledger: ULID, warehouse_id, product_id, signed quantity, unit_cost_cents, source_type/id, user_id, notes, created_at), and `stock_levels` (cached balances: compound unique index on warehouse_id + product_id, quantity_on_hand, quantity_reserved). Created domain models with `UsesTenantConnection` and `HasUlids`, backed enum `StockMovementType`, DTOs, `WarehouseService` (default warehouse switching, validation) and `StockService` with `DB::transaction(..., 3)`, row-level locking (`lockForUpdate()`), and negative stock prevention against tenant setting `allow_negative_stock`. Implemented thin controllers (`WarehouseController`, `StockController`), Form Requests, API resources adhering to the standard envelope, and policies enforcing PRD §2.1 RBAC (`stock.view`, `stock.adjust`, `products.manage`). Added 6 Pest tests in `tests/Feature/Inventory/WarehouseStockTest.php` covering CRUD, default toggles, atomic movement/level sync, negative stock blocking/allowing, and cross-tenant isolation. Full suite: 162 backend tests passing (925 assertions), Pint clean (184 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean. Ticked Phase 3 item.
 - `2026-10-26`: `feat/product-catalog`: Implemented Product Catalog Backend Engine in `Modules/Inventory`. Added tenant migrations for `categories`, `units_of_measure`, and `products` (ULID primary keys, tenant-scoped unique SKU, BIGINT integer cents for `cost_price_cents` and `selling_price_cents`, indexed barcode, `tax_category` enum, `low_stock_threshold`). Created domain models with `UsesTenantConnection` and `HasUlids`, readonly typed DTOs, `ProductService`, `CategoryService`, and `UnitOfMeasureService` with `DB::transaction(..., 3)` and pessimistic row locking (`lockForUpdate()`). Built Form Requests with tenant DB uniqueness/existence validation, API Resources adhering to standard envelope, and Policies enforcing PRD §2.1 RBAC (`products.view` for Owner/Accountant/Warehouse/Sales, `products.manage` for Owner/Warehouse). Updated `ProvisionTenantDatabase` to dynamically scan all `Modules/*/Database/Migrations`. Added 7 Pest tests in `tests/Feature/Inventory/ProductCatalogTest.php` covering CRUD, RBAC, negative price rejection, search/filter/sort, and multi-tenant SKU isolation. Full suite: 156 backend tests passing (849 assertions), Pint clean (161 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean. Ticked Phase 3 item.
 - `2026-10-26`: `feat/frontend-auth`: Implemented Frontend Auth Pages, Protected Navigation, `useCan` hook & Tenant User Management UI. Built React 19 pages (`Login`, `ForgotPassword`, `ResetPassword`, `VerifyEmail`), tenant user management page (`UsersIndex` with invite dialog, role update, status toggle), accessible UI primitives (`input`, `label`, `alert`, `dialog`), `useCan` hook and `<Can>` component, `AppLayout` sidebar navigation filtering, root `app.blade.php`, `HandleInertiaRequests` lazy-sharing tenant & auth props (roles and permissions), and 7 backend Inertia web route feature tests in `tests/Feature/Auth/FrontendAuthRoutesTest.php`. Full test suite: 148 backend Pest tests pass (766 assertions), Pint clean (127 files), PHPStan Level 8 0 errors, Vitest 17 tests pass (5 test suites), ESLint clean, TypeScript strict 0 errors. All Phase 2 items complete.
