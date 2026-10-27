@@ -7,6 +7,7 @@ namespace Modules\Inventory\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Modules\Inventory\Enums\TaxCategory;
 use Shared\Tenancy\UsesTenantConnection;
@@ -79,5 +80,21 @@ final class Product extends Model
     public function unitOfMeasure(): BelongsTo
     {
         return $this->belongsTo(UnitOfMeasure::class, 'unit_of_measure_id');
+    }
+
+    /**
+     * @return HasMany<StockLevel, $this>
+     */
+    public function stockLevels(): HasMany
+    {
+        return $this->hasMany(StockLevel::class, 'product_id');
+    }
+
+    /**
+     * @return HasMany<StockMovement, $this>
+     */
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class, 'product_id');
     }
 }
