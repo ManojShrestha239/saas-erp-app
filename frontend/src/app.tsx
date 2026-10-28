@@ -7,9 +7,10 @@ const appName = import.meta.env.VITE_APP_NAME || 'NexusERP';
 createInertiaApp({
   title: (title) => `${title} - ${appName}`,
   resolve: async (name: string) => {
-    const pages = import.meta.glob<Record<string, unknown>>(
-      './features/**/pages/**/*.tsx'
-    );
+    const pages = import.meta.glob<Record<string, unknown>>([
+      './features/**/pages/**/*.tsx',
+      '!./features/**/pages/**/__tests__/**',
+    ]);
 
     const parts = name.split('/');
     const target =

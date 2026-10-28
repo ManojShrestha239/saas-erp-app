@@ -8,6 +8,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Modules\Contacts\Http\Controllers\ContactController;
+use Modules\Contacts\Http\Controllers\ContactCsvImportController;
 
 Route::middleware([
     'identify.tenant',
@@ -17,5 +18,8 @@ Route::middleware([
     EnsureTenantSession::class,
     'auth:web',
 ])->group(function (): void {
+    Route::get('contacts/import/template', [ContactCsvImportController::class, 'template'])->name('contacts.import.template');
+    Route::post('contacts/import', [ContactCsvImportController::class, 'store'])->name('contacts.import.store');
+    Route::get('contacts/import/{id}', [ContactCsvImportController::class, 'show'])->name('contacts.import.show');
     Route::apiResource('contacts', ContactController::class);
 });

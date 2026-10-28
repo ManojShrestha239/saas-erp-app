@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 3: Core Inventory & Contact Management
-- **Last Completed Task:** `feat/low-stock-sse-alerts`: Low-stock detection, dashboard alerts, SSE stream endpoint (`/api/v1/stream`), and `useEventStream` hook. Built backend `LowStockDetected` event (`ShouldDispatchAfterCommit`), `PublishLowStockAlertToStream` listener publishing to Redis channel `tenant:{tenant_id}:stream`, `paginateLowStock` in `StockService`, REST endpoint `GET /api/v1/inventory/low-stock` with `LowStockResource`, SSE endpoint `GET /api/v1/stream` with `StreamController` (streaming headers, 15s heartbeat, `Last-Event-ID` support, testing environment bypass), frontend `useEventStream` hook with exponential backoff and cleanup, `LowStockAlertCard`, and `LowStockTable` with real-time push event updates and `DataTable` integration. Pint clean, PHPStan level 8 0 errors, Vitest 37 tests passing, ESLint clean, TypeScript strict 0 errors. Ticked Phase 3 item.
-- **Current Focus:** User review and approval to commit and merge `feat/low-stock-sse-alerts` into `develop`, followed by proposing next Phase 3 task: CSV import for products and contacts (queued).
-- **Working branch:** `feat/low-stock-sse-alerts`
+- **Active Phase:** Phase 3: Core Inventory & Contact Management (Completed) · Next: Phase 4 (Purchasing, Sales & Invoicing Engines)
+- **Last Completed Task:** `feat/csv-import`: Asynchronous queued CSV import engine for products and contacts with duplicate strategies (`skip`, `update`), integer-only minor unit money parsing (`MoneyParser`), line-by-line validation error reporting, REST endpoints (`POST/GET /api/v1/inventory/products/import*` and `POST/GET /api/v1/contacts/import*`), sample template CSV downloads, frontend reusable `CsvImportDialog` modal with drag-and-drop, duplicate action toggle, polling progress bar, summary metrics, and error table. All 12 Pest feature tests, 7 Pest unit tests passing, Pint clean, PHPStan level 8 0 errors, Vitest 42 tests passing (9 files), ESLint clean, TypeScript strict 0 errors. Ticked Phase 3 final item.
+- **Current Focus:** User review and approval to commit and merge `feat/csv-import` into `develop`, completing Phase 3.
+- **Working branch:** `feat/csv-import`
 
 ## Architectural Decisions (Decision Log)
 
@@ -46,6 +46,7 @@
 | 24  | Contacts module architecture in `Modules\Contacts`: unified `contacts` table with `type` enum (`customer`, `supplier`, `both`) to support commercial partners acting as both client and vendor without data duplication; sequential code generation (`CUST-*`, `SUPP-*`, `CONT-*`); minor units for financial bounds (`credit_limit_cents`, `opening_balance_cents` as `BIGINT`); jsonb address payloads; granular RBAC checks differentiating sales reps (customers only) and procurement/accountants (suppliers/both). | Prevents data duplication for dual-role entities, guarantees strict financial bounds without floating-point math, and preserves multi-tenant data isolation and RBAC. |
 | 25  | Reusable headless DataTable built on `@tanstack/react-table` (v8) with server-side/client-side hybrid controls, density toggles (compact 40px / comfortable 52px), column visibility, sticky headers on `surface-muted`, skeleton loading states, designed empty states with CTA, and accessible dropdown menus. | Guarantees high-density ERP data presentation, strict TypeScript typing (no `any`), consistent Design.md tokens, and seamless server pagination integration across all subsequent modules. |
 | 26  | Low-stock detection and real-time SSE stream architecture: `LowStockDetected` event dispatched inside `StockService::recordMovement` via `ShouldDispatchAfterCommit`; listener pushes event payload to Redis channel `tenant:{tenant_id}:stream`; `/api/v1/stream` endpoint streams `text/event-stream` with heartbeat ticks; frontend `useEventStream` manages lifecycle and updates `LowStockTable` live. | Zero polling overhead, decoupled post-commit broadcasting, resilient auto-reconnecting browser streams, and instant shortage visibility for warehouse managers and owners without page reloads. |
+| 27  | Asynchronous queued CSV import engine: forward-only `csv_imports` table in tenant DB tracks status, row metrics, and line-by-line validation errors; queued jobs `ProcessProductCsvImportJob` and `ProcessContactCsvImportJob` execute within tenant context; endpoints return `202 Accepted` immediately for poll-based UI; `MoneyParser::toCents` parses financial amounts to integer cents with zero floats; configurable duplicate resolution (`skip` vs `update`); reusable frontend `CsvImportDialog`. | Prevents HTTP timeouts on large datasets; prevents floating-point corruption in pricing/balances; provides immediate UX feedback with progress percentage and actionable error reports; adheres to tenant isolation and RBAC. |
 
 ## Conventions Locked In
 
@@ -66,34 +67,45 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/low-stock-sse-alerts` into `develop`.
-2. Propose next task in Phase 3: CSV import for products and contacts (queued).
+1. Await user review and approval to commit and merge `feat/csv-import` into `develop`.
+2. Propose Phase 4 Kickoff and first task: Gap-free per-tenant document numbering service (`feat/document-numbering-service`).
 
 ## Key Files Touched (latest)
 
+- `backend/database/migrations/tenant/2026_10_28_000001_create_tenant_csv_imports_table.php`
+- `backend/Shared/Enums/CsvImportStatus.php`
+- `backend/Shared/Enums/CsvImportType.php`
+- `backend/Shared/Enums/CsvDuplicateAction.php`
+- `backend/Shared/Models/CsvImport.php`
+- `backend/Shared/Money/MoneyParser.php`
+- `backend/Shared/Http/Resources/CsvImportResource.php`
 - `backend/Shared/Http/Middleware/EnsureJsonRequest.php`
+- `backend/Shared/Exceptions/ApiException.php`
 - `backend/Shared/Http/Controllers/StreamController.php`
-- `backend/routes/api.php`
-- `backend/Modules/Inventory/Events/LowStockDetected.php`
-- `backend/Modules/Inventory/Listeners/PublishLowStockAlertToStream.php`
-- `backend/Modules/Inventory/Http/Resources/LowStockResource.php`
-- `backend/Modules/Inventory/Services/StockService.php`
-- `backend/Modules/Inventory/Http/Controllers/StockController.php`
+- `backend/Modules/Inventory/Services/ProductCsvImportService.php`
+- `backend/Modules/Inventory/Jobs/ProcessProductCsvImportJob.php`
+- `backend/Modules/Inventory/Http/Requests/ImportProductCsvRequest.php`
+- `backend/Modules/Inventory/Http/Controllers/ProductCsvImportController.php`
 - `backend/Modules/Inventory/Routes/api.php`
-- `backend/Modules/Inventory/Providers/InventoryServiceProvider.php`
-- `backend/tests/Feature/Inventory/LowStockAlertTest.php`
-- `frontend/src/shared/hooks/useEventStream.ts`
-- `frontend/src/shared/hooks/__tests__/useEventStream.test.ts`
-- `frontend/src/features/inventory/types/inventory.types.ts`
+- `backend/Modules/Contacts/Services/ContactCsvImportService.php`
+- `backend/Modules/Contacts/Jobs/ProcessContactCsvImportJob.php`
+- `backend/Modules/Contacts/Http/Requests/ImportContactCsvRequest.php`
+- `backend/Modules/Contacts/Http/Controllers/ContactCsvImportController.php`
+- `backend/Modules/Contacts/Routes/api.php`
+- `backend/tests/Feature/Inventory/ProductCsvImportTest.php`
+- `backend/tests/Feature/Contacts/ContactCsvImportTest.php`
+- `backend/tests/Unit/Shared/Money/MoneyParserTest.php`
+- `frontend/src/shared/types/csvImport.types.ts`
+- `frontend/src/shared/components/CsvImportDialog.tsx`
+- `frontend/src/shared/components/__tests__/CsvImportDialog.test.tsx`
 - `frontend/src/features/inventory/api/inventoryApi.ts`
-- `frontend/src/features/dashboard/components/LowStockAlertCard.tsx`
-- `frontend/src/features/dashboard/components/LowStockTable.tsx`
-- `frontend/src/features/dashboard/components/__tests__/LowStockAlerts.test.tsx`
-- `frontend/src/features/dashboard/pages/PlaceholderDashboard.tsx`
-- `frontend/src/features/dashboard/pages/__tests__/PlaceholderDashboard.test.tsx`
+- `frontend/src/features/contacts/api/contactsApi.ts`
 
 ## Session Log (newest first)
 
+- `2026-10-28`: `feat/contacts-directory-ui`: Implemented the Contacts Directory Inertia page and tenant web route, resolving the 404 route at `/contacts`. Created `backend/Modules/Contacts/Routes/web.php` with `GET /contacts` protected by `auth:web` and tenant session middleware. Created `frontend/src/features/contacts/types/contacts.types.ts` and expanded `contactsApi.ts` with full CRUD methods. Built `frontend/src/features/contacts/pages/ContactsIndex.tsx` with reusable `DataTable` (server-side pagination, sorting, density toggle), type tabs (`All`, `Customers`, `Suppliers`, `Both`), status filter, debounced search, Add/Edit contact modal with payment terms & credit limits in integer minor units, Delete modal, and integrated `CsvImportDialog`. Added 3 Pest web route tests in `tests/Feature/Contacts/ContactsWebRouteTest.php` and 3 Vitest tests in `ContactsIndex.test.tsx`. All 18 Pest contacts tests, 45 frontend tests, Pint, Larastan level 8 (0 errors), ESLint, and Vite build passing.
+- `2026-10-28`: `feat/seeders`: Built dedicated database seeders for Super Admin (`SuperAdminSeeder`) and Tenant Admin/Owner (`TenantAdminSeeder`), wired them into `DatabaseSeeder`. `SuperAdminSeeder` seeds `admin@nexuserp.test` with `SuperAdminSecret123!` on central DB. `TenantAdminSeeder` ensures tenant database existence, runs tenant migrations, seeds Spatie roles & permissions (`TenantRolePermissionSeeder`), default settings, and creates Tenant Owner (`owner@demo.nexuserp.test` / `TenantAdmin123!`), Tenant Admin (`admin@demo.nexuserp.test` / `TenantAdmin123!`), and standard demo staff users (`TenantUser123!`). Added Pest feature tests in `tests/Feature/Seeders/DatabaseSeederTest.php` verifying idempotency and authentication on central/tenant domains. Pint clean, Larastan Level 8 0 errors.
+- `2026-10-28`: `feat/csv-import`: Completed Phase 3 final task: queued CSV import engine for products and contacts. Built tenant migration for `csv_imports` table, enums (`CsvImportStatus`, `CsvImportType`, `CsvDuplicateAction`), shared model `CsvImport` with ULIDs and `UsesTenantConnection`, `MoneyParser::toCents` for integer-cent parsing without floats, `ProductCsvImportService`, `ContactCsvImportService`, queued jobs `ProcessProductCsvImportJob` and `ProcessContactCsvImportJob`, Form Requests with RBAC checks, Controllers returning `202 Accepted` and status polling endpoints, sample template generation endpoints, frontend `CsvImportDialog` with drag-and-drop, duplicate action select, progress polling, summary cards, and error table. All 12 Pest feature tests, 7 unit tests, 42 Vitest tests, Pint, Larastan level 8 (0 errors), and ESLint passing. Phase 3 completed.
 - `2026-10-28`: `feat/low-stock-sse-alerts`: Implemented low-stock detection engine, domain event (`LowStockDetected` implementing `ShouldDispatchAfterCommit`), listener publishing to Redis (`PublishLowStockAlertToStream`), REST endpoint `GET /api/v1/inventory/low-stock` with `LowStockResource`, SSE endpoint `GET /api/v1/stream` with `StreamController` (streaming headers, 15s heartbeats, `Last-Event-ID` support, testing environment bypass), frontend `useEventStream` hook with exponential backoff and cleanup, `LowStockAlertCard`, and `LowStockTable` with real-time push event updates and `DataTable` integration. Pint clean, PHPStan level 8 0 errors, Vitest 37 tests passing, ESLint clean, TypeScript strict 0 errors. Ticked Phase 3 item.
 - `2026-10-28`: `feat/reusable-datatable`: Implemented Reusable `DataTable` component built on `@tanstack/react-table` (v8) with server-side and client-side sorting, pagination, filtering, column visibility toggles, row density toggles (compact 40px vs comfortable 52px), sticky headers on `surface-muted`, skeleton loading states, designed empty states with CTA, and row selection support. Created accessible semantic `Table` primitives (`table.tsx`), accessible `DropdownMenu` primitives (`dropdown-menu.tsx`), and 9 Vitest integration tests in `DataTable.test.tsx`. Full frontend CI green: 26 tests passing, ESLint clean, TypeScript strict 0 errors. Ticked Phase 3 item.
 - `2026-10-27`: `feat/customer-supplier-directories`: Implemented Customer & Supplier Directories with opening balances, payment terms, and credit limits in `Modules/Contacts`. Added tenant migration `contacts` table (ULID, type enum: `customer`, `supplier`, `both`, unique code, legal/trade name, tax_id, email, phone, payment_terms_days, credit_limit_cents BIGINT, opening_balance_cents BIGINT, is_active, notes, billing_address jsonb, shipping_address jsonb). Implemented domain model `Contact` with `UsesTenantConnection` and `HasUlids`, backed enum `ContactType`, readonly DTOs `CreateContactData` and `UpdateContactData`, and `ContactService` operating within `DB::connection('tenant')->transaction(..., 3)` with auto-sequential code generation (`CUST-000001`, `SUPP-000001`, `CONT-000001`), row locking (`lockForUpdate()`), and negative credit limit rejection. Created `ContactPolicy` enforcing PRD §2.1 RBAC (`customers.manage`/`sales.manage` for customers, `suppliers.manage`/`purchases.manage` for suppliers), `StoreContactRequest` and `UpdateContactRequest`, `ContactResource`, and `ContactController` CRUD endpoints (`GET/POST /api/v1/contacts`, `GET/PUT/DELETE /api/v1/contacts/{id}`). Added 9 comprehensive Pest feature tests in `tests/Feature/Contacts/ContactDirectoryTest.php`. Full suite: 179 backend tests passing (1,122 assertions), Pint clean (212 files), Larastan Level 8 0 errors, Vitest 17 tests passing, ESLint clean. Ticked Phase 3 item.

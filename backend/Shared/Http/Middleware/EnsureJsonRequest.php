@@ -26,13 +26,20 @@ final class EnsureJsonRequest
         }
 
         if (in_array($request->method(), ['POST', 'PUT', 'PATCH'], true)) {
+            if ($request->allFiles() !== []) {
+                return $next($request);
+            }
+
             $contentType = (string) $request->header('Content-Type', '');
             $hasBody = strlen((string) $request->getContent()) > 0;
 
             if ($hasBody || $contentType !== '') {
-                if (! str_contains(strtolower($contentType), 'application/json')) {
+                $isJson = str_contains(strtolower($contentType), 'application/json');
+                $isMultipart = str_contains(strtolower($contentType), 'multipart/form-data');
+
+                if (! $isJson && ! $isMultipart) {
                     return ApiResponse::error(
-                        message: 'Unsupported Media Type. Content-Type must be application/json.',
+                        message: 'Unsupported Media Type. Content-Type must be application/json or multipart/form-data.',
                         code: 'UNSUPPORTED_MEDIA_TYPE',
                         status: HttpStatus::UNSUPPORTED_MEDIA_TYPE,
                     );

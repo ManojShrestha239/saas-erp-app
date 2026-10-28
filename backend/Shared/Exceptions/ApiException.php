@@ -76,4 +76,9 @@ class ApiException extends Exception
     {
         return new static($message, HttpStatus::UNPROCESSABLE_ENTITY, $errorCode, $errors);
     }
+
+    public static function internal(string $message = 'Internal server error', string $errorCode = 'INTERNAL_ERROR'): static
+    {
+        return new static($message, HttpStatus::INTERNAL_SERVER_ERROR, $errorCode);
+    }
 }

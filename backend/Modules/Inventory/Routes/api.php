@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Modules\Inventory\Http\Controllers\CategoryController;
 use Modules\Inventory\Http\Controllers\ProductController;
+use Modules\Inventory\Http\Controllers\ProductCsvImportController;
 use Modules\Inventory\Http\Controllers\StockAdjustmentController;
 use Modules\Inventory\Http\Controllers\StockController;
 use Modules\Inventory\Http\Controllers\UnitOfMeasureController;
@@ -24,6 +25,9 @@ Route::middleware([
 ])->prefix('inventory')->group(function (): void {
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('units-of-measure', UnitOfMeasureController::class);
+    Route::get('products/import/template', [ProductCsvImportController::class, 'template'])->name('products.import.template');
+    Route::post('products/import', [ProductCsvImportController::class, 'store'])->name('products.import.store');
+    Route::get('products/import/{id}', [ProductCsvImportController::class, 'show'])->name('products.import.show');
     Route::apiResource('products', ProductController::class);
     Route::apiResource('warehouses', WarehouseController::class);
 

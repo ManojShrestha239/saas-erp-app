@@ -34,9 +34,11 @@ final class StreamController
                 ignore_user_abort(false);
             }
 
-            // Flush all output buffers
-            while (ob_get_level() > 0) {
-                ob_end_clean();
+            // Flush all output buffers in non-testing environments
+            if (! app()->runningUnitTests()) {
+                while (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
             }
 
             $connectionId = (string) Str::ulid();
@@ -57,7 +59,7 @@ final class StreamController
             }
 
             // In testing environment, exit immediately after connected event
-            if (app()->environment('testing')) {
+            if (app()->runningUnitTests() || app()->environment('testing')) {
                 return;
             }
 
