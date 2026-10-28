@@ -23,6 +23,12 @@ Route::middleware([
     });
 
     Route::middleware('auth:web')->group(function (): void {
+        Route::get('/', fn (): Response => Inertia::render('dashboard/PlaceholderDashboard'))
+            ->name('dashboard.home');
+
+        Route::get('dashboard', fn (): Response => Inertia::render('dashboard/PlaceholderDashboard'))
+            ->name('dashboard');
+
         Route::get('verify-email', fn (): Response => Inertia::render('auth/VerifyEmail'))
             ->name('verification.notice');
 

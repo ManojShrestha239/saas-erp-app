@@ -66,8 +66,24 @@ beforeEach(function (): void {
 });
 
 afterEach(function (): void {
-    IdentifyDomainTestModel::query()->delete();
-    IdentifyTenantTestModel::query()->delete();
+    IdentifyDomainTestModel::query()->whereIn('host', [
+        'suspended.nexuserp.test',
+        'provisioning.nexuserp.test',
+        'failed.nexuserp.test',
+        'acme.nexuserp.test',
+        'cached.nexuserp.test',
+        'lifecycle.nexuserp.test',
+        'exception.nexuserp.test',
+    ])->delete();
+    IdentifyTenantTestModel::query()->whereIn('slug', [
+        'suspended',
+        'provisioning',
+        'failed-tenant',
+        'acme',
+        'cached-corp',
+        'lifecycle',
+        'exception-corp',
+    ])->delete();
     app(TenantManager::class)->reset();
     Cache::store('redis')->flush();
 });
