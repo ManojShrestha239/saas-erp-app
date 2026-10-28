@@ -15,7 +15,9 @@ use Modules\Inventory\Models\StockAdjustment;
 use Modules\Inventory\Models\StockAdjustmentItem;
 use Modules\Inventory\Models\StockLevel;
 use Modules\Inventory\Models\Warehouse;
+use Shared\Enums\DocumentType;
 use Shared\Exceptions\ApiException;
+use Shared\Services\DocumentNumberingService;
 use Shared\Tenancy\TenantContext;
 
 final class StockAdjustmentService
@@ -23,6 +25,7 @@ final class StockAdjustmentService
     public function __construct(
         private readonly DatabaseManager $db,
         private readonly StockService $stockService,
+        private readonly DocumentNumberingService $documentNumberingService,
     ) {}
 
     public function create(CreateStockAdjustmentData $data): StockAdjustment
@@ -45,9 +48,10 @@ final class StockAdjustmentService
                 throw ApiException::unprocessable('At least one item is required for a stock adjustment.', 'ITEMS_REQUIRED');
             }
 
-            $year = now()->format('Y');
-            $count = StockAdjustment::whereYear('created_at', (int) $year)->count() + 1;
-            $adjNumber = sprintf('ADJ-%s-%06d', $year, $count);
+            $adjNumber = $this->documentNumberingService->generateNext(
+                type: DocumentType::StockAdjustment,
+                year: (int) now()->format('Y'),
+            );
 
             /** @var StockAdjustment $adjustment */
             $adjustment = StockAdjustment::create([

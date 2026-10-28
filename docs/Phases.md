@@ -43,7 +43,7 @@
 
 ## Phase 4: Purchasing, Sales & Invoicing Engines
 
-- [ ] Gap-free per-tenant document numbering service.
+- [x] Gap-free per-tenant document numbering service.
 - [ ] Purchase Orders → goods receipt → Supplier Bills with AP balance tracking.
 - [ ] Sales Quotations → conversion → Sales Invoices with AR balance tracking.
 - [ ] Payments and allocations (receipts and supplier payments), unallocated credit handling.

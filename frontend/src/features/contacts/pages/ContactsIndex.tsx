@@ -487,7 +487,7 @@ export default function ContactsIndex() {
             ).map((tab) => (
               <Button
                 key={tab.value}
-                variant={typeFilter === tab.value ? 'default' : 'ghost'}
+                variant={typeFilter === tab.value ? 'primary' : 'ghost'}
                 size="sm"
                 className="text-xs h-8"
                 onClick={() => {
@@ -784,10 +784,20 @@ export default function ContactsIndex() {
         <CsvImportDialog
           open={isImportOpen}
           onOpenChange={setIsImportOpen}
-          type="contacts"
           title="Import Contacts"
           description="Upload a CSV file to bulk import customers and suppliers with payment terms and credit limits."
-          onImportComplete={fetchContacts}
+          templateUrl={contactsApi.getContactTemplateUrl()}
+          onUpload={async (file, duplicateAction) => {
+            const res = await contactsApi.uploadContactCsv(file, duplicateAction);
+            return res.data;
+          }}
+          onCheckStatus={async (importId) => {
+            const res = await contactsApi.getContactImportStatus(importId);
+            return res.data;
+          }}
+          onSuccess={() => {
+            void fetchContacts();
+          }}
         />
       </div>
     </AppLayout>

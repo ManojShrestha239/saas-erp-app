@@ -268,7 +268,7 @@ test('inactive products are excluded from low-stock queries', function (): void 
         'cost_price_cents' => 1000,
         'selling_price_cents' => 2000,
         'low_stock_threshold' => 50,
-        'is_active' => false,
+        'is_active' => true,
     ]);
 
     /** @var StockService $stockService */
@@ -281,6 +281,8 @@ test('inactive products are excluded from low-stock queries', function (): void 
         quantity: 2,
         userId: $this->ownerUser->id,
     ));
+
+    $inactiveProduct->update(['is_active' => false]);
 
     $response = $this->actingAs($this->ownerUser, 'web')
         ->withHeaders([

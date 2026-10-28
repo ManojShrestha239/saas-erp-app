@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Shared\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Shared\Services\DocumentNumberingService;
 use Shared\Tenancy\TenantManager;
 
 final class SharedServiceProvider extends ServiceProvider
@@ -12,6 +13,7 @@ final class SharedServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(TenantManager::class);
+        $this->app->singleton(DocumentNumberingService::class);
         $this->registerModules();
     }
 

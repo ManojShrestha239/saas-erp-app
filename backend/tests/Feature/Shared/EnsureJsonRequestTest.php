@@ -29,7 +29,7 @@ test('request rejecting application/json returns 406 Not Acceptable', function (
     $response->assertStatus(406)
         ->assertExactJson([
             'success' => false,
-            'message' => 'Not Acceptable. Request must accept application/json.',
+            'message' => 'Not Acceptable. Request must accept application/json or text/event-stream.',
             'errors' => [],
             'code' => 'NOT_ACCEPTABLE',
         ]);
@@ -58,7 +58,7 @@ test('mutation request with unsupported Content-Type returns 415 Unsupported Med
     $response->assertStatus(415)
         ->assertExactJson([
             'success' => false,
-            'message' => 'Unsupported Media Type. Content-Type must be application/json.',
+            'message' => 'Unsupported Media Type. Content-Type must be application/json or multipart/form-data.',
             'errors' => [],
             'code' => 'UNSUPPORTED_MEDIA_TYPE',
         ]);
