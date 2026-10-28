@@ -4,7 +4,7 @@ import { PlaceholderDashboard } from '../PlaceholderDashboard';
 
 describe('PlaceholderDashboard', () => {
   it('renders the application shell and dashboard placeholder content', () => {
-    render(<PlaceholderDashboard tenantName="Acme Corp" />);
+    render(<PlaceholderDashboard tenantName="Acme Corp" lowStockItems={[]} />);
 
     // Shell header & title
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();

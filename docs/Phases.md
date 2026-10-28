@@ -37,7 +37,7 @@
 - [x] Manual stock adjustments with reason (ledger posting hook stubbed until Phase 5).
 - [x] Customer & Supplier directories with opening balances, payment terms, credit limit.
 - [x] Reusable `DataTable` (TanStack): server-side sort/filter/paginate, column visibility, sticky header.
-- [ ] Low-stock detection, dashboard alerts, SSE stream endpoint and `useEventStream` hook.
+- [x] Low-stock detection, dashboard alerts, SSE stream endpoint and `useEventStream` hook.
 - [ ] CSV import for products and contacts (queued).
 - **Exit criteria:** stock never goes negative (unless allowed); concurrent adjustments are safe; tables handle 100k rows.
 

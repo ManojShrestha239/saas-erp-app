@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Modules\Inventory\Http\Requests\RecordStockMovementRequest;
+use Modules\Inventory\Http\Resources\LowStockResource;
 use Modules\Inventory\Http\Resources\StockLevelResource;
 use Modules\Inventory\Http\Resources\StockMovementResource;
 use Modules\Inventory\Models\StockLevel;
@@ -66,6 +67,52 @@ final class StockController
         return ApiResponse::success(
             data: StockLevelResource::collection($paginator->items()),
             message: 'Stock levels retrieved successfully.',
+            meta: $meta,
+        );
+    }
+
+    public function lowStock(Request $request): JsonResponse
+    {
+        Gate::authorize('viewAny', StockLevel::class);
+
+        $perPage = min(max((int) $request->query('per_page', 25), 1), 100);
+
+        /** @var string|null $warehouseId */
+        $warehouseId = $request->query('warehouse_id');
+        /** @var string|null $search */
+        $search = $request->query('search');
+
+        $sortBy = (string) $request->query('sort_by', 'quantity_on_hand');
+        $sortDirection = strtolower((string) $request->query('sort_direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        $allowedSorts = ['quantity_on_hand', 'created_at', 'updated_at'];
+        if (! in_array($sortBy, $allowedSorts, true)) {
+            $sortBy = 'quantity_on_hand';
+        }
+
+        $paginator = $this->stockService->paginateLowStock(
+            filters: [
+                'warehouse_id' => $warehouseId,
+                'search' => $search,
+            ],
+            sort: [
+                'field' => $sortBy,
+                'direction' => $sortDirection,
+            ],
+            perPage: $perPage,
+        );
+
+        $meta = [
+            'page' => $paginator->currentPage(),
+            'current_page' => $paginator->currentPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'last_page' => $paginator->lastPage(),
+        ];
+
+        return ApiResponse::success(
+            data: LowStockResource::collection($paginator->items()),
+            message: 'Low stock items retrieved successfully.',
             meta: $meta,
         );
     }

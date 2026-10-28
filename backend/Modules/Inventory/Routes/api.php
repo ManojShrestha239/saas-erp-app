@@ -28,6 +28,7 @@ Route::middleware([
     Route::apiResource('warehouses', WarehouseController::class);
 
     Route::get('stock-levels', [StockController::class, 'levels'])->name('stock-levels.index');
+    Route::get('low-stock', [StockController::class, 'lowStock'])->name('stock-levels.low-stock');
     Route::get('stock-levels/{warehouse}/{product}', [StockController::class, 'levelDetail'])->name('stock-levels.detail');
     Route::get('stock-movements', [StockController::class, 'movements'])->name('stock-movements.index');
     Route::post('stock-movements', [StockController::class, 'recordMovement'])->name('stock-movements.store');

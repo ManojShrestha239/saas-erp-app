@@ -1,19 +1,38 @@
+import * as React from 'react';
 import { AppLayout } from '@/layouts/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import type { LowStockItem } from '@/features/inventory/types/inventory.types';
+import { LowStockAlertCard } from '../components/LowStockAlertCard';
+import { LowStockTable } from '../components/LowStockTable';
 
 export interface PlaceholderDashboardProps {
   tenantName?: string;
+  lowStockItems?: LowStockItem[];
 }
 
 export function PlaceholderDashboard({
   tenantName = 'NexusERP Tenant',
+  lowStockItems,
 }: PlaceholderDashboardProps) {
+  const [lowStockCount, setLowStockCount] = React.useState<number>(lowStockItems?.length ?? 0);
+  const [outOfStockCount, setOutOfStockCount] = React.useState<number>(
+    lowStockItems?.filter((i) => i.is_out_of_stock).length ?? 0
+  );
+
+  const handleAlertCountChange = React.useCallback(
+    (count: number, outOfStock: number) => {
+      setLowStockCount(count);
+      setOutOfStockCount(outOfStock);
+    },
+    []
+  );
+
   return (
     <AppLayout title="Dashboard" activeNav="dashboard" tenantName={tenantName}>
       <div className="space-y-6">
-        {/* Status card */}
+        {/* Status bar */}
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
             Welcome back to <span className="font-semibold text-foreground">{tenantName}</span>
@@ -21,8 +40,13 @@ export function PlaceholderDashboard({
           <Badge variant="success">Workspace Active</Badge>
         </div>
 
-        {/* Overview cards */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Overview cards / KPIs */}
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <LowStockAlertCard
+            count={lowStockCount}
+            outOfStockCount={outOfStockCount}
+          />
+
           <Card>
             <CardHeader>
               <CardTitle>System Overview</CardTitle>
@@ -60,11 +84,20 @@ export function PlaceholderDashboard({
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Authentication, user provisioning, and role-based access control scheduled for Phase 2.
+                Inventory engine and real-time SSE stream monitoring active.
               </p>
-              <Badge variant="default">Phase 1 Foundation</Badge>
+              <Badge variant="default">Phase 3 Active</Badge>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Real-Time Low Stock & Shortage Alerts Section */}
+        <div className="pt-2">
+          <LowStockTable
+            initialItems={lowStockItems}
+            autoFetch={lowStockItems === undefined}
+            onAlertCountChange={handleAlertCountChange}
+          />
         </div>
       </div>
     </AppLayout>

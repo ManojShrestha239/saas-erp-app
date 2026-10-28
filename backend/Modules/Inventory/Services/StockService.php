@@ -7,11 +7,13 @@ namespace Modules\Inventory\Services;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Inventory\DTOs\RecordStockMovementData;
+use Modules\Inventory\Events\LowStockDetected;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\StockLevel;
 use Modules\Inventory\Models\StockMovement;
 use Modules\Inventory\Models\Warehouse;
 use Shared\Exceptions\ApiException;
+use Shared\Tenancy\TenantContext;
 
 final class StockService
 {
@@ -87,6 +89,21 @@ final class StockService
                 'created_at' => now(),
             ]);
 
+            if ($product->low_stock_threshold > 0 && $newOnHand <= $product->low_stock_threshold) {
+                $tenantId = app()->bound(TenantContext::class) ? (string) app(TenantContext::class)->id : '';
+
+                event(new LowStockDetected(
+                    tenantId: $tenantId,
+                    productId: $product->id,
+                    productName: $product->name,
+                    sku: $product->sku,
+                    warehouseId: $warehouse->id,
+                    warehouseName: $warehouse->name,
+                    quantityOnHand: $newOnHand,
+                    lowStockThreshold: $product->low_stock_threshold,
+                ));
+            }
+
             return $movement->load(['warehouse', 'product']);
         }, 3);
     }
@@ -119,6 +136,38 @@ final class StockService
 
         if (! empty($filters['product_id'])) {
             $query->where('product_id', $filters['product_id']);
+        }
+
+        if (! empty($filters['search'])) {
+            $term = '%'.$filters['search'].'%';
+            $query->whereHas('product', function ($q) use ($term): void {
+                $q->where('name', 'ilike', $term)
+                    ->orWhere('sku', 'ilike', $term)
+                    ->orWhere('barcode', 'ilike', $term);
+            });
+        }
+
+        $query->orderBy($sort['field'], $sort['direction']);
+
+        return $query->paginate($perPage);
+    }
+
+    /**
+     * @param  array{warehouse_id?: ?string, search?: ?string}  $filters
+     * @param  array{field: string, direction: 'asc'|'desc'}  $sort
+     * @return LengthAwarePaginator<int, StockLevel>
+     */
+    public function paginateLowStock(array $filters, array $sort, int $perPage = 25): LengthAwarePaginator
+    {
+        $query = StockLevel::with(['warehouse', 'product.category', 'product.unitOfMeasure'])
+            ->whereHas('product', function ($q): void {
+                $q->where('low_stock_threshold', '>', 0)
+                    ->whereColumn('stock_levels.quantity_on_hand', '<=', 'products.low_stock_threshold')
+                    ->where('is_active', true);
+            });
+
+        if (! empty($filters['warehouse_id'])) {
+            $query->where('warehouse_id', $filters['warehouse_id']);
         }
 
         if (! empty($filters['search'])) {
