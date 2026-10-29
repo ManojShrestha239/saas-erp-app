@@ -6,7 +6,6 @@ namespace Modules\Purchasing\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Modules\Auth\Models\TenantUser;
 use Modules\Purchasing\DTOs\GoodsReceiptItemData;
 use Modules\Purchasing\DTOs\RecordGoodsReceiptData;
 
@@ -15,12 +14,11 @@ final class StoreGoodsReceiptRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->user();
-        if (! $user instanceof TenantUser) {
+        if ($user === null) {
             return false;
         }
 
-        return $user->hasAnyRole(['owner', 'admin', 'accountant', 'warehouse', 'warehouse_manager'])
-            || $user->can('purchases.manage')
+        return $user->can('purchases.manage')
             || $user->can('purchases.po.draft')
             || $user->can('stock.adjust');
     }

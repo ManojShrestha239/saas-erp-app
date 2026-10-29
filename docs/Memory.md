@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Purchase Orders → goods receipt → Supplier Bills with AP balance tracking (Completed)
-- **Last Completed Task:** `feat/purchasing-orders-bills`: Implemented the full purchasing cycle engine in `Modules/Purchasing`. Forward-only tenant migration for `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `supplier_bills`, and `supplier_bill_items`. Implemented status enums (`PurchaseOrderStatus`, `SupplierBillStatus`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PurchaseOrderApproved`, `GoodsReceiptRecorded`, `SupplierBillPosted` with `ShouldDispatchAfterCommit`), services (`PurchaseOrderService`, `GoodsReceiptService`, `SupplierBillService`), policies (`PurchaseOrderPolicy`, `SupplierBillPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Atomic integration with `StockService::recordMovement` on goods receipt, gap-free document numbering (`PO-YYYY-000000`, `GRN-YYYY-000000`, `BILL-YYYY-000000`), immutable posted bills, and real-time AP balance aggregation (`getOutstandingPayableCents`). Added 8 comprehensive Pest feature tests covering end-to-end workflows, excess quantity rejection, atomic stock increments, immutability, and multi-tenant isolation. Full test suite: 232 backend Pest tests passing (1,429 assertions), Pint clean, Larastan Level 8 0 errors, Vitest 45 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 second item.
-- **Current Focus:** User review and approval to commit and merge `feat/purchasing-orders-bills` into `develop`.
-- **Working branch:** `feat/purchasing-orders-bills`
+- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Sales Quotations → conversion → Sales Invoices with AR balance tracking (Completed)
+- **Last Completed Task:** `feat/sales-quotations-invoices`: Implemented full sales cycle engine in `Modules/Sales` and frontend Inertia UIs in `features/sales`. Forward-only tenant migration for `sales_quotations`, `sales_quotation_items`, `sales_invoices`, and `sales_invoice_items`. Status enums (`SalesQuotationStatus`, `SalesInvoiceStatus` with `isImmutable()`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`SalesQuotationSent`, `SalesInvoicePosted` implementing `ShouldDispatchAfterCommit`), services (`SalesQuotationService`, `SalesInvoiceService`), policies (`SalesQuotationPolicy`, `SalesInvoicePolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. Full CI green: 242 Pest tests passing (1,513 assertions), Pint clean across 317 files, Larastan Level 8 0 errors, Vitest 52 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 third item.
+- **Current Focus:** User review and approval to commit and merge `feat/sales-quotations-invoices` into `develop`.
+- **Working branch:** `feat/sales-quotations-invoices`
 
 ## Architectural Decisions (Decision Log)
 
@@ -50,6 +50,7 @@
 | 28  | Gap-free per-tenant document numbering engine in `Shared\Services\DocumentNumberingService`: forward-only `document_sequences` table in tenant DB (`[type, year]` compound unique index, `BIGINT current_number`); atomic increment under `lockForUpdate()` inside `DB::connection('tenant')->transaction(..., 3)`; non-locking preview (`peekNext`); manual sequence jumping (`setNextNumber`); gap-free transaction rollback preservation; backed enum `DocumentType` with standard prefixes (`INV`, `QUO`, `PO`, `GRN`, `BILL`, `REC`, `PAY`, `ADJ`, `CN`, `DN`, `JRN`). | Concurrency-safe, legal/tax-compliant gap-free document numbering without race conditions across all purchasing, sales, inventory, and accounting document sequences; maintains strict multi-tenant isolation. |
 | 29  | Purchasing engine architecture in `Modules\Purchasing`: Purchase Orders (`draft` → `approved` → `partially_received` / `received` → `closed` / `cancelled`), Goods Receipts atomically incrementing stock levels via `StockService::recordMovement`, and Supplier Bills (`draft` → `posted` → `partially_paid` / `paid` / `void`) with AP balance tracking. Header-item pattern for all documents (`*_cents` BIGINT, zero floats), sequential gap-free numbering (`PO-YYYY-000000`, `GRN-YYYY-000000`, `BILL-YYYY-000000`), excess receipt rejection against remaining quantities, immutable posted bills, decoupled domain events (`PurchaseOrderApproved`, `GoodsReceiptRecorded`, `SupplierBillPosted` with `ShouldDispatchAfterCommit`), and policies typed against `Authorizable`. | End-to-end procurement cycle, strict financial integrity without floating point math, pessimistic stock locking, immutability of posted supplier liabilities, and readiness for Phase 5 General Ledger posting. |
 | 30  | Central migrations isolation & discovery: `SharedServiceProvider` registers `database/migrations/central` in `boot()` for central database migrations (`super_admins`, `tenants`, `domains`, etc.); `ModuleServiceProvider` suppresses registering tenant module migrations to the central migrator. | Enables standard `php artisan migrate` and `php artisan db:seed` to migrate and seed central tables cleanly without polluting the central database with tenant module tables or causing missing relation errors. |
+| 31  | Sales engine architecture in `Modules\Sales`: Sales Quotations (`draft` → `sent` → `accepted` / `rejected` / `expired`) and Sales Invoices (`draft` → `posted` → `partially_paid` / `paid` / `void`). Atomic conversion replicates line items. Gap-free document numbers (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. | Complete sales-to-receivables pipeline, strict integer financial bounds, immutability of posted customer invoices, and real-time AR visibility for credit control and Phase 5 General Ledger posting. |
 
 ## Conventions Locked In
 
@@ -70,33 +71,37 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/purchasing-orders-bills` into `develop`.
-2. Propose next Phase 4 task: Sales Quotations → conversion → Sales Invoices with AR balance tracking (`feat/sales-quotations-invoices`).
+1. Await user review and approval to commit and merge `feat/sales-quotations-invoices` into `develop`.
+2. Propose next Phase 4 task: Payments and allocations (receipts and supplier payments), unallocated credit handling (`feat/payments-allocations`).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Purchasing/Database/Migrations/2026_10_28_000001_create_purchasing_tables.php`
-- `backend/Modules/Purchasing/Enums/PurchaseOrderStatus.php`
-- `backend/Modules/Purchasing/Enums/SupplierBillStatus.php`
-- `backend/Modules/Purchasing/Models/PurchaseOrder.php`
-- `backend/Modules/Purchasing/Models/PurchaseOrderItem.php`
-- `backend/Modules/Purchasing/Models/GoodsReceipt.php`
-- `backend/Modules/Purchasing/Models/GoodsReceiptItem.php`
-- `backend/Modules/Purchasing/Models/SupplierBill.php`
-- `backend/Modules/Purchasing/Models/SupplierBillItem.php`
-- `backend/Modules/Purchasing/Services/PurchaseOrderService.php`
-- `backend/Modules/Purchasing/Services/GoodsReceiptService.php`
-- `backend/Modules/Purchasing/Services/SupplierBillService.php`
-- `backend/Modules/Purchasing/Policies/PurchaseOrderPolicy.php`
-- `backend/Modules/Purchasing/Policies/SupplierBillPolicy.php`
-- `backend/Modules/Purchasing/Http/Controllers/PurchaseOrderController.php`
-- `backend/Modules/Purchasing/Http/Controllers/GoodsReceiptController.php`
-- `backend/Modules/Purchasing/Http/Controllers/SupplierBillController.php`
-- `backend/Modules/Purchasing/Providers/PurchasingServiceProvider.php`
-- `backend/Modules/Purchasing/Routes/api.php`
-- `backend/tests/Feature/Purchasing/PurchasingEngineTest.php`
+- `backend/Modules/Sales/Database/Migrations/2026_10_29_000001_create_sales_tables.php`
+- `backend/Modules/Sales/Enums/SalesQuotationStatus.php`
+- `backend/Modules/Sales/Enums/SalesInvoiceStatus.php`
+- `backend/Modules/Sales/Models/SalesQuotation.php`
+- `backend/Modules/Sales/Models/SalesQuotationItem.php`
+- `backend/Modules/Sales/Models/SalesInvoice.php`
+- `backend/Modules/Sales/Models/SalesInvoiceItem.php`
+- `backend/Modules/Sales/Services/SalesQuotationService.php`
+- `backend/Modules/Sales/Services/SalesInvoiceService.php`
+- `backend/Modules/Sales/Http/Controllers/SalesQuotationController.php`
+- `backend/Modules/Sales/Http/Controllers/SalesInvoiceController.php`
+- `backend/Modules/Sales/Routes/api.php`
+- `backend/Modules/Sales/Routes/web.php`
+- `backend/tests/Feature/Sales/SalesEngineTest.php`
+- `backend/tests/Feature/Sales/SalesWebRouteTest.php`
+- `frontend/src/features/sales/types/sales.types.ts`
+- `frontend/src/features/sales/api/salesApi.ts`
+- `frontend/src/features/sales/pages/QuotationsIndex.tsx`
+- `frontend/src/features/sales/pages/InvoicesIndex.tsx`
+- `frontend/src/features/sales/pages/__tests__/QuotationsIndex.test.tsx`
+- `frontend/src/features/sales/pages/__tests__/InvoicesIndex.test.tsx`
+- `frontend/src/layouts/AppLayout.tsx`
 
 ## Session Log (newest first)
+
+- `2026-10-29`: `feat/sales-quotations-invoices`: Implemented full sales cycle engine in `Modules/Sales` and frontend Inertia UIs in `features/sales`. Forward-only tenant migration for `sales_quotations`, `sales_quotation_items`, `sales_invoices`, and `sales_invoice_items`. Status enums (`SalesQuotationStatus`, `SalesInvoiceStatus` with `isImmutable()`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`SalesQuotationSent`, `SalesInvoicePosted` implementing `ShouldDispatchAfterCommit`), services (`SalesQuotationService`, `SalesInvoiceService`), policies (`SalesQuotationPolicy`, `SalesInvoicePolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Atomic quotation conversion replicates line items into draft or posted invoice. Gap-free document numbering (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display, TanStack DataTable, and conversion/post modals. Full CI green: 242 Pest tests passing (1,513 assertions), Pint clean across 317 files, Larastan Level 8 0 errors, Vitest 52 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 third item.
 
 - `2026-10-29`: `fix/central-migrations-discovery`: Resolved `relation "super_admins" does not exist` when executing `php artisan migrate --seed`. Registered `database/migrations/central` in `SharedServiceProvider::boot()` so central database migrations are automatically discovered by Laravel's migration runner. Removed tenant module migration loading from `ModuleServiceProvider` so tenant module tables are not mistakenly executed against the central connection or null default connection. Added `force="true"` to `APP_ENV=testing` in `phpunit.xml` and cleared stale configuration cache. Fixed 4 Larastan Level 8 typing issues in `Modules/Purchasing` Form Requests and `SupplierBillService`. Full CI green: 232 Pest tests passing, Pint clean, Larastan Level 8 0 errors, Vitest 45 tests passing, ESLint and TypeScript clean.
 - `2026-10-28`: `feat/purchasing-orders-bills`: Implemented the full purchasing cycle engine in `Modules/Purchasing`. Forward-only tenant migration for `purchase_orders`, `purchase_order_items`, `goods_receipts`, `goods_receipt_items`, `supplier_bills`, and `supplier_bill_items`. Implemented status enums (`PurchaseOrderStatus`, `SupplierBillStatus`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PurchaseOrderApproved`, `GoodsReceiptRecorded`, `SupplierBillPosted` with `ShouldDispatchAfterCommit`), services (`PurchaseOrderService`, `GoodsReceiptService`, `SupplierBillService`), policies (`PurchaseOrderPolicy`, `SupplierBillPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Atomic integration with `StockService::recordMovement` on goods receipt, gap-free document numbering (`PO-YYYY-000000`, `GRN-YYYY-000000`, `BILL-YYYY-000000`), immutable posted bills, and real-time AP balance aggregation (`getOutstandingPayableCents`). Added 8 comprehensive Pest feature tests covering end-to-end workflows, excess quantity rejection, atomic stock increments, immutability, and multi-tenant isolation. Full test suite: 232 backend Pest tests passing (1,429 assertions), Pint clean, Larastan Level 8 0 errors, Vitest 45 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 second item.

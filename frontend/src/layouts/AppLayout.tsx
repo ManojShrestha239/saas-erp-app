@@ -5,6 +5,7 @@ import {
   Package,
   ShoppingCart,
   FileText,
+  ReceiptText,
   Users,
   BookOpen,
   BarChart3,
@@ -43,7 +44,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, id: 'dashboard' },
   { name: 'Inventory', href: '/inventory', icon: Package, id: 'inventory', permission: 'inventory.view' },
-  { name: 'Sales', href: '/sales', icon: ShoppingCart, id: 'sales', permission: 'sales.view' },
+  { name: 'Sales', href: '/quotations', icon: ShoppingCart, id: 'sales', permission: 'sales.view' },
+  { name: 'Invoices', href: '/invoices', icon: ReceiptText, id: 'invoices', permission: 'sales.view' },
   { name: 'Purchasing', href: '/purchasing', icon: FileText, id: 'purchasing', permission: 'purchases.view' },
   { name: 'Contacts', href: '/contacts', icon: Users, id: 'contacts', permission: 'contacts.view' },
   { name: 'Users', href: '/users', icon: Users, id: 'users', permission: 'users.manage' },

@@ -28,4 +28,16 @@ export const inventoryApi = {
   getProductTemplateUrl: (): string => {
     return '/api/v1/inventory/products/import/template';
   },
+
+  getProducts: (params?: Record<string, string | number | boolean | undefined | null>): Promise<ApiSuccessResponse<Array<{
+    id: string;
+    sku: string;
+    name: string;
+    selling_price_cents: number;
+    cost_price_cents: number;
+    tax_category: string;
+    is_active: boolean;
+  }>>> => {
+    return apiClient.get('/inventory/products', { params });
+  },
 };

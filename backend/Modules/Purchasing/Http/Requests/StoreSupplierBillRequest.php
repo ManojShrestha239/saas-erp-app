@@ -6,7 +6,6 @@ namespace Modules\Purchasing\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
-use Modules\Auth\Models\TenantUser;
 use Modules\Purchasing\DTOs\CreateSupplierBillData;
 use Modules\Purchasing\DTOs\SupplierBillItemData;
 
@@ -15,12 +14,11 @@ final class StoreSupplierBillRequest extends FormRequest
     public function authorize(): bool
     {
         $user = $this->user();
-        if (! $user instanceof TenantUser) {
+        if ($user === null) {
             return false;
         }
 
-        return $user->hasAnyRole(['owner', 'admin', 'accountant'])
-            || $user->can('purchases.manage');
+        return $user->can('purchases.manage');
     }
 
     /**
