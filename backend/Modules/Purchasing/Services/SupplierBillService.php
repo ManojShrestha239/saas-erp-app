@@ -223,4 +223,39 @@ final class SupplierBillService
     {
         return SupplierBill::with(['items', 'purchaseOrder'])->find($id);
     }
+
+    public function recordPayment(string $id, int $amountCents): SupplierBill
+    {
+        return $this->db->connection('tenant')->transaction(function () use ($id, $amountCents): SupplierBill {
+            /** @var SupplierBill|null $bill */
+            $bill = SupplierBill::where('id', $id)->lockForUpdate()->first();
+
+            if ($bill === null) {
+                throw ApiException::notFound("Supplier bill '{$id}' not found.", 'BILL_NOT_FOUND');
+            }
+
+            if (! in_array($bill->status, [SupplierBillStatus::Posted, SupplierBillStatus::PartiallyPaid], true)) {
+                throw ApiException::unprocessable(
+                    "Payment cannot be recorded for bill in status '{$bill->status->value}'.",
+                    'INVALID_BILL_STATUS'
+                );
+            }
+
+            if ($amountCents <= 0) {
+                throw ApiException::unprocessable('Payment amount must be greater than zero.', 'INVALID_PAYMENT_AMOUNT');
+            }
+
+            $newPaid = $bill->amount_paid_cents + $amountCents;
+            $newDue = max(0, $bill->total_cents - $newPaid);
+            $newStatus = $newDue === 0 ? SupplierBillStatus::Paid : SupplierBillStatus::PartiallyPaid;
+
+            $bill->update([
+                'amount_paid_cents' => $newPaid,
+                'amount_due_cents' => $newDue,
+                'status' => $newStatus,
+            ]);
+
+            return $bill->load('items');
+        }, 3);
+    }
 }

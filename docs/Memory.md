@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Sales Quotations → conversion → Sales Invoices with AR balance tracking (Completed)
-- **Last Completed Task:** `feat/sales-quotations-invoices`: Implemented full sales cycle engine in `Modules/Sales` and frontend Inertia UIs in `features/sales`. Forward-only tenant migration for `sales_quotations`, `sales_quotation_items`, `sales_invoices`, and `sales_invoice_items`. Status enums (`SalesQuotationStatus`, `SalesInvoiceStatus` with `isImmutable()`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`SalesQuotationSent`, `SalesInvoicePosted` implementing `ShouldDispatchAfterCommit`), services (`SalesQuotationService`, `SalesInvoiceService`), policies (`SalesQuotationPolicy`, `SalesInvoicePolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. Full CI green: 242 Pest tests passing (1,513 assertions), Pint clean across 317 files, Larastan Level 8 0 errors, Vitest 52 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 third item.
-- **Current Focus:** User review and approval to commit and merge `feat/sales-quotations-invoices` into `develop`.
-- **Working branch:** `feat/sales-quotations-invoices`
+- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Payments and allocations (receipts and supplier payments), unallocated credit handling (Completed)
+- **Last Completed Task:** `feat/payments-allocations`: Implemented full payment and allocation engine in `Modules/Payments` and frontend Inertia UIs in `features/payments` (`/customer-receipts`, `/supplier-payments`). Forward-only tenant migration for `payments` and `payment_allocations` tables. Status enums (`PaymentType`, `PaymentMethod`, `PaymentStatus` with `isImmutable()`, `PayableType`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), services (`PaymentService`, cross-module hooks in `SalesInvoiceService::recordPayment` and `SupplierBillService::recordPayment`), policies (`PaymentPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted payments, excess allocation prevention with 422, unallocated credit/debit balance tracking, live customer advance credit / supplier debit aggregation, and frontend Inertia UIs (`CustomerReceiptsIndex`, `SupplierPaymentsIndex`) with TanStack DataTable, live credit widgets, record payment modals, and allocation modals with auto-allocation and live validation. Full CI green: 253 Pest tests passing (1,586 assertions), Pint clean across 342 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 fourth item.
+- **Current Focus:** User review and approval to commit `feat/payments-allocations` and merge into `develop`.
+- **Working branch:** `feat/payments-allocations`
 
 ## Architectural Decisions (Decision Log)
 
@@ -51,6 +51,7 @@
 | 29  | Purchasing engine architecture in `Modules\Purchasing`: Purchase Orders (`draft` → `approved` → `partially_received` / `received` → `closed` / `cancelled`), Goods Receipts atomically incrementing stock levels via `StockService::recordMovement`, and Supplier Bills (`draft` → `posted` → `partially_paid` / `paid` / `void`) with AP balance tracking. Header-item pattern for all documents (`*_cents` BIGINT, zero floats), sequential gap-free numbering (`PO-YYYY-000000`, `GRN-YYYY-000000`, `BILL-YYYY-000000`), excess receipt rejection against remaining quantities, immutable posted bills, decoupled domain events (`PurchaseOrderApproved`, `GoodsReceiptRecorded`, `SupplierBillPosted` with `ShouldDispatchAfterCommit`), and policies typed against `Authorizable`. | End-to-end procurement cycle, strict financial integrity without floating point math, pessimistic stock locking, immutability of posted supplier liabilities, and readiness for Phase 5 General Ledger posting. |
 | 30  | Central migrations isolation & discovery: `SharedServiceProvider` registers `database/migrations/central` in `boot()` for central database migrations (`super_admins`, `tenants`, `domains`, etc.); `ModuleServiceProvider` suppresses registering tenant module migrations to the central migrator. | Enables standard `php artisan migrate` and `php artisan db:seed` to migrate and seed central tables cleanly without polluting the central database with tenant module tables or causing missing relation errors. |
 | 31  | Sales engine architecture in `Modules\Sales`: Sales Quotations (`draft` → `sent` → `accepted` / `rejected` / `expired`) and Sales Invoices (`draft` → `posted` → `partially_paid` / `paid` / `void`). Atomic conversion replicates line items. Gap-free document numbers (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. | Complete sales-to-receivables pipeline, strict integer financial bounds, immutability of posted customer invoices, and real-time AR visibility for credit control and Phase 5 General Ledger posting. |
+| 32  | Payment & Multi-document Allocation Architecture in `Modules\Payments`: payments (`inbound` customer receipts, `outbound` supplier disbursements) and `payment_allocations` tables with `UsesTenantConnection` and `HasUlids`. Sequential gap-free numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), integer minor units (`*_cents` BIGINT), atomic allocations across Sales Invoices and Supplier Bills under `DB::connection('tenant')->transaction(..., 3)` with row-locking (`lockForUpdate()`), excess allocation rejection with 422, unallocated credit/debit advance tracking, decoupled domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), and TanStack DataTable frontend UIs (`/customer-receipts`, `/supplier-payments`). | Full cash reconciliation and multi-document settlement without float inaccuracies; maintains tenant isolation and module decoupling via public service hooks; ready for Phase 5 General Ledger posting. |
 
 ## Conventions Locked In
 
@@ -71,36 +72,46 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/sales-quotations-invoices` into `develop`.
-2. Propose next Phase 4 task: Payments and allocations (receipts and supplier payments), unallocated credit handling (`feat/payments-allocations`).
+1. Await user review and approval to commit and merge `feat/payments-allocations` into `develop`.
+2. Propose next Phase 4 task: Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)` (`feat/invoice-posting-stock-sync`).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Sales/Database/Migrations/2026_10_29_000001_create_sales_tables.php`
-- `backend/Modules/Sales/Enums/SalesQuotationStatus.php`
-- `backend/Modules/Sales/Enums/SalesInvoiceStatus.php`
-- `backend/Modules/Sales/Models/SalesQuotation.php`
-- `backend/Modules/Sales/Models/SalesQuotationItem.php`
-- `backend/Modules/Sales/Models/SalesInvoice.php`
-- `backend/Modules/Sales/Models/SalesInvoiceItem.php`
-- `backend/Modules/Sales/Services/SalesQuotationService.php`
-- `backend/Modules/Sales/Services/SalesInvoiceService.php`
-- `backend/Modules/Sales/Http/Controllers/SalesQuotationController.php`
-- `backend/Modules/Sales/Http/Controllers/SalesInvoiceController.php`
-- `backend/Modules/Sales/Routes/api.php`
-- `backend/Modules/Sales/Routes/web.php`
-- `backend/tests/Feature/Sales/SalesEngineTest.php`
-- `backend/tests/Feature/Sales/SalesWebRouteTest.php`
-- `frontend/src/features/sales/types/sales.types.ts`
-- `frontend/src/features/sales/api/salesApi.ts`
-- `frontend/src/features/sales/pages/QuotationsIndex.tsx`
-- `frontend/src/features/sales/pages/InvoicesIndex.tsx`
-- `frontend/src/features/sales/pages/__tests__/QuotationsIndex.test.tsx`
-- `frontend/src/features/sales/pages/__tests__/InvoicesIndex.test.tsx`
+- `backend/Modules/Payments/Database/Migrations/2026_10_29_000002_create_payments_tables.php`
+- `backend/Modules/Payments/Enums/PaymentType.php`
+- `backend/Modules/Payments/Enums/PaymentMethod.php`
+- `backend/Modules/Payments/Enums/PaymentStatus.php`
+- `backend/Modules/Payments/Enums/PayableType.php`
+- `backend/Modules/Payments/Models/Payment.php`
+- `backend/Modules/Payments/Models/PaymentAllocation.php`
+- `backend/Modules/Payments/DTOs/PaymentAllocationItemData.php`
+- `backend/Modules/Payments/DTOs/CreatePaymentData.php`
+- `backend/Modules/Payments/DTOs/AllocatePaymentData.php`
+- `backend/Modules/Payments/Events/PaymentReceived.php`
+- `backend/Modules/Payments/Events/PaymentDisbursed.php`
+- `backend/Modules/Payments/Events/PaymentAllocated.php`
+- `backend/Modules/Payments/Services/PaymentService.php`
+- `backend/Modules/Payments/Policies/PaymentPolicy.php`
+- `backend/Modules/Payments/Http/Requests/StorePaymentRequest.php`
+- `backend/Modules/Payments/Http/Requests/AllocatePaymentRequest.php`
+- `backend/Modules/Payments/Http/Resources/PaymentResource.php`
+- `backend/Modules/Payments/Http/Resources/PaymentAllocationResource.php`
+- `backend/Modules/Payments/Http/Controllers/PaymentController.php`
+- `backend/Modules/Payments/Routes/api.php`
+- `backend/Modules/Payments/Routes/web.php`
+- `backend/tests/Feature/Payments/PaymentEngineTest.php`
+- `backend/tests/Feature/Payments/PaymentWebRouteTest.php`
+- `frontend/src/features/payments/types/payments.types.ts`
+- `frontend/src/features/payments/api/paymentsApi.ts`
+- `frontend/src/features/payments/pages/CustomerReceiptsIndex.tsx`
+- `frontend/src/features/payments/pages/SupplierPaymentsIndex.tsx`
+- `frontend/src/features/payments/pages/__tests__/CustomerReceiptsIndex.test.tsx`
+- `frontend/src/features/payments/pages/__tests__/SupplierPaymentsIndex.test.tsx`
 - `frontend/src/layouts/AppLayout.tsx`
 
 ## Session Log (newest first)
 
+- `2026-10-29`: `feat/payments-allocations`: Implemented full payment and allocation engine in `Modules/Payments` and frontend Inertia UIs in `features/payments` (`/customer-receipts`, `/supplier-payments`). Forward-only tenant migration for `payments` and `payment_allocations` tables with ULID primary keys. Status enums (`PaymentType`, `PaymentMethod`, `PaymentStatus` with `isImmutable()`, `PayableType`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), services (`PaymentService`, cross-module hooks in `SalesInvoiceService::recordPayment` and `SupplierBillService::recordPayment`), policies (`PaymentPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted payments, excess allocation prevention with 422, unallocated credit/debit balance tracking, live customer advance credit / supplier debit aggregation, and frontend Inertia UIs (`CustomerReceiptsIndex`, `SupplierPaymentsIndex`) with TanStack DataTable, live credit widgets, record payment modals, and allocation modals with auto-allocation and live validation. Full CI green: 253 Pest tests passing (1,586 assertions), Pint clean across 342 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 fourth item.
 - `2026-10-29`: `feat/sales-quotations-invoices`: Implemented full sales cycle engine in `Modules/Sales` and frontend Inertia UIs in `features/sales`. Forward-only tenant migration for `sales_quotations`, `sales_quotation_items`, `sales_invoices`, and `sales_invoice_items`. Status enums (`SalesQuotationStatus`, `SalesInvoiceStatus` with `isImmutable()`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`SalesQuotationSent`, `SalesInvoicePosted` implementing `ShouldDispatchAfterCommit`), services (`SalesQuotationService`, `SalesInvoiceService`), policies (`SalesQuotationPolicy`, `SalesInvoicePolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Atomic quotation conversion replicates line items into draft or posted invoice. Gap-free document numbering (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display, TanStack DataTable, and conversion/post modals. Full CI green: 242 Pest tests passing (1,513 assertions), Pint clean across 317 files, Larastan Level 8 0 errors, Vitest 52 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 third item.
 
 - `2026-10-29`: `fix/central-migrations-discovery`: Resolved `relation "super_admins" does not exist` when executing `php artisan migrate --seed`. Registered `database/migrations/central` in `SharedServiceProvider::boot()` so central database migrations are automatically discovered by Laravel's migration runner. Removed tenant module migration loading from `ModuleServiceProvider` so tenant module tables are not mistakenly executed against the central connection or null default connection. Added `force="true"` to `APP_ENV=testing` in `phpunit.xml` and cleared stale configuration cache. Fixed 4 Larastan Level 8 typing issues in `Modules/Purchasing` Form Requests and `SupplierBillService`. Full CI green: 232 Pest tests passing, Pint clean, Larastan Level 8 0 errors, Vitest 45 tests passing, ESLint and TypeScript clean.

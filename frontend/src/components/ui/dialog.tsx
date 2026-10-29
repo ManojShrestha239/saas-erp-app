@@ -37,7 +37,11 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         onClick={() => onOpenChange(false)}
       />
       {/* Content */}
-      <div className="relative z-50 w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-lg animate-in zoom-in-95 duration-200 sm:rounded-lg">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative z-50 w-full max-w-lg rounded-lg border border-border bg-card p-6 shadow-lg animate-in zoom-in-95 duration-200 sm:rounded-lg"
+      >
         <button
           type="button"
           onClick={() => onOpenChange(false)}
