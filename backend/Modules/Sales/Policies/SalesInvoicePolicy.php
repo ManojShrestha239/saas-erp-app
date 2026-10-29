@@ -40,6 +40,11 @@ final class SalesInvoicePolicy
         return $this->canManage($user);
     }
 
+    public function void(Authorizable $user, SalesInvoice $invoice): bool
+    {
+        return $this->canManage($user);
+    }
+
     private function canAccess(Authorizable $user): bool
     {
         return $user->can(TenantPermission::SalesManage->value);

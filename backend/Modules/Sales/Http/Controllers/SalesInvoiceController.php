@@ -112,6 +112,22 @@ final class SalesInvoiceController extends Controller
         );
     }
 
+    public function void(string $id, Request $request): JsonResponse
+    {
+        $invoice = $this->invoiceService->find($id);
+        Gate::authorize('void', $invoice);
+
+        /** @var string $userId */
+        $userId = (string) $request->user()?->getAuthIdentifier();
+
+        $voided = $this->invoiceService->void($id, $userId);
+
+        return ApiResponse::success(
+            data: new SalesInvoiceResource($voided),
+            message: 'Sales invoice voided successfully and inventory restored.'
+        );
+    }
+
     public function customerReceivableBalance(string $customerId): JsonResponse
     {
         Gate::authorize('viewAny', SalesInvoice::class);

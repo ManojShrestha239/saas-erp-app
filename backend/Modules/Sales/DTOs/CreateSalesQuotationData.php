@@ -14,6 +14,7 @@ final readonly class CreateSalesQuotationData
         public string $issueDate,
         public ?string $expiryDate = null,
         public string $currency = 'USD',
+        public ?string $warehouseId = null,
         public ?string $notes = null,
         public array $items = [],
     ) {}
@@ -35,6 +36,7 @@ final readonly class CreateSalesQuotationData
             issueDate: (string) $data['issue_date'],
             expiryDate: isset($data['expiry_date']) ? (string) $data['expiry_date'] : null,
             currency: (string) ($data['currency'] ?? 'USD'),
+            warehouseId: isset($data['warehouse_id']) ? (string) $data['warehouse_id'] : null,
             notes: isset($data['notes']) ? (string) $data['notes'] : null,
             items: array_values($items),
         );

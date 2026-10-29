@@ -126,9 +126,10 @@ final class SalesQuotationController extends Controller
         $userId = (string) $request->user()?->getAuthIdentifier();
 
         $dueDate = $request->input('due_date') ? (string) $request->input('due_date') : null;
+        $warehouseId = $request->input('warehouse_id') ? (string) $request->input('warehouse_id') : null;
         $postImmediately = (bool) $request->input('post_immediately', false);
 
-        $invoice = $this->quotationService->convertToInvoice($id, $userId, $dueDate, $postImmediately);
+        $invoice = $this->quotationService->convertToInvoice($id, $userId, $dueDate, $postImmediately, $warehouseId);
 
         return ApiResponse::created(
             data: new SalesInvoiceResource($invoice),

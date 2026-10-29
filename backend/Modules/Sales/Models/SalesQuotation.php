@@ -16,6 +16,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property string $id
  * @property string $quotation_number
  * @property string $customer_id
+ * @property string|null $warehouse_id
  * @property SalesQuotationStatus $status
  * @property Carbon $issue_date
  * @property Carbon|null $expiry_date
@@ -48,6 +49,7 @@ final class SalesQuotation extends Model
         'id',
         'quotation_number',
         'customer_id',
+        'warehouse_id',
         'status',
         'issue_date',
         'expiry_date',

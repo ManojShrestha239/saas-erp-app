@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class ConvertSalesQuotationRequest extends FormRequest
 {
@@ -25,6 +26,7 @@ final class ConvertSalesQuotationRequest extends FormRequest
     {
         return [
             'due_date' => ['nullable', 'date'],
+            'warehouse_id' => ['nullable', 'string', Rule::exists('tenant.warehouses', 'id')],
             'post_immediately' => ['nullable', 'boolean'],
         ];
     }

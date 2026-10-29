@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Payments and allocations (receipts and supplier payments), unallocated credit handling (Completed)
-- **Last Completed Task:** `feat/payments-allocations`: Implemented full payment and allocation engine in `Modules/Payments` and frontend Inertia UIs in `features/payments` (`/customer-receipts`, `/supplier-payments`). Forward-only tenant migration for `payments` and `payment_allocations` tables. Status enums (`PaymentType`, `PaymentMethod`, `PaymentStatus` with `isImmutable()`, `PayableType`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), services (`PaymentService`, cross-module hooks in `SalesInvoiceService::recordPayment` and `SupplierBillService::recordPayment`), policies (`PaymentPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted payments, excess allocation prevention with 422, unallocated credit/debit balance tracking, live customer advance credit / supplier debit aggregation, and frontend Inertia UIs (`CustomerReceiptsIndex`, `SupplierPaymentsIndex`) with TanStack DataTable, live credit widgets, record payment modals, and allocation modals with auto-allocation and live validation. Full CI green: 253 Pest tests passing (1,586 assertions), Pint clean across 342 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 fourth item.
-- **Current Focus:** User review and approval to commit `feat/payments-allocations` and merge into `develop`.
-- **Working branch:** `feat/payments-allocations`
+- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)` (Completed)
+- **Last Completed Task:** `feat/invoice-posting-stock-sync`: Implemented atomic invoice posting with physical inventory synchronization and domain events in `Modules/Sales`. Forward-only tenant migration adding `warehouse_id` (nullable, indexed) to `sales_quotations` and `sales_invoices`. Decoupled module interactions using `StockService` and `WarehouseService` (preserving Arch tests model isolation). On invoice posting, physical stock is decremented atomically inside `DB::connection('tenant')->transaction(..., 3)` using `StockMovementType::SalesDelivery` with pessimistic row locking (`lockForUpdate()`). Enforced tenant `allow_negative_stock` setting: rolls back completely with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches `SalesInvoicePosted` and `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details ready for Phase 5 GL posting. Implemented atomic invoice voiding (`void()`): rejects invoices with payments (422 `INVOICE_HAS_PAYMENTS`), restores stock via `StockMovementType::AdjustmentIn`, sets status to `Void`, `amount_due_cents` to 0, and dispatches `SalesInvoiceVoided`. Oversell race conditions are fully serialized and prevented. Added `POST /api/v1/sales/invoices/{id}/void` endpoint, policies, request validation, resources, and frontend TypeScript contracts. Full CI gate clean: 261 Pest tests passing (1,654 assertions), Pint clean across 346 files, PHPStan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 fifth item.
+- **Current Focus:** User review and approval to commit `feat/invoice-posting-stock-sync` and merge into `develop`.
+- **Working branch:** `feat/invoice-posting-stock-sync`
 
 ## Architectural Decisions (Decision Log)
 
@@ -52,6 +52,7 @@
 | 30  | Central migrations isolation & discovery: `SharedServiceProvider` registers `database/migrations/central` in `boot()` for central database migrations (`super_admins`, `tenants`, `domains`, etc.); `ModuleServiceProvider` suppresses registering tenant module migrations to the central migrator. | Enables standard `php artisan migrate` and `php artisan db:seed` to migrate and seed central tables cleanly without polluting the central database with tenant module tables or causing missing relation errors. |
 | 31  | Sales engine architecture in `Modules\Sales`: Sales Quotations (`draft` → `sent` → `accepted` / `rejected` / `expired`) and Sales Invoices (`draft` → `posted` → `partially_paid` / `paid` / `void`). Atomic conversion replicates line items. Gap-free document numbers (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. | Complete sales-to-receivables pipeline, strict integer financial bounds, immutability of posted customer invoices, and real-time AR visibility for credit control and Phase 5 General Ledger posting. |
 | 32  | Payment & Multi-document Allocation Architecture in `Modules\Payments`: payments (`inbound` customer receipts, `outbound` supplier disbursements) and `payment_allocations` tables with `UsesTenantConnection` and `HasUlids`. Sequential gap-free numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), integer minor units (`*_cents` BIGINT), atomic allocations across Sales Invoices and Supplier Bills under `DB::connection('tenant')->transaction(..., 3)` with row-locking (`lockForUpdate()`), excess allocation rejection with 422, unallocated credit/debit advance tracking, decoupled domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), and TanStack DataTable frontend UIs (`/customer-receipts`, `/supplier-payments`). | Full cash reconciliation and multi-document settlement without float inaccuracies; maintains tenant isolation and module decoupling via public service hooks; ready for Phase 5 General Ledger posting. |
+| 33  | Atomic Invoice Posting & Stock Synchronization in `Modules\Sales`: invoice posting (`SalesInvoiceService::post`) executes inside `DB::connection('tenant')->transaction(..., 3)`. Decrements physical inventory atomically via `StockService::recordMovement` with `StockMovementType::SalesDelivery` under pessimistic row-locking (`lockForUpdate()`). Strictly enforces `allow_negative_stock` tenant setting: rolls back with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches stubbed `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details for Phase 5 GL posting. Implemented atomic voiding (`void()`) checking zero payments, restoring stock via `StockMovementType::AdjustmentIn`, and dispatching `SalesInvoiceVoided`. | Guarantees physical inventory reflects invoices atomically without race conditions or overselling; preserves module boundaries via domain services and events; guarantees immutability and complete auditability. |
 
 ## Conventions Locked In
 
@@ -72,12 +73,24 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/payments-allocations` into `develop`.
-2. Propose next Phase 4 task: Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)` (`feat/invoice-posting-stock-sync`).
+1. Await user review and approval to commit and merge `feat/invoice-posting-stock-sync` into `develop`.
+2. Propose next Phase 4 task: Document PDFs via Browsershot (invoice, quotation, PO) (`feat/document-pdf-browsershot`).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Payments/Database/Migrations/2026_10_29_000002_create_payments_tables.php`
+- `backend/Modules/Sales/Database/Migrations/2026_10_29_000003_add_warehouse_id_to_sales_tables.php`
+- `backend/Modules/Sales/Events/SalesInvoicePostedToLedger.php`
+- `backend/Modules/Sales/Events/SalesInvoiceVoided.php`
+- `backend/Modules/Sales/Services/SalesInvoiceService.php`
+- `backend/Modules/Sales/Services/SalesQuotationService.php`
+- `backend/Modules/Sales/Http/Controllers/SalesInvoiceController.php`
+- `backend/Modules/Sales/Http/Controllers/SalesQuotationController.php`
+- `backend/Modules/Sales/Policies/SalesInvoicePolicy.php`
+- `backend/Modules/Sales/Routes/api.php`
+- `backend/tests/Feature/Sales/SalesStockSyncTest.php`
+- `backend/tests/Feature/Sales/SalesEngineTest.php`
+- `frontend/src/features/sales/api/salesApi.ts`
+- `frontend/src/features/sales/types/sales.types.ts`
 - `backend/Modules/Payments/Enums/PaymentType.php`
 - `backend/Modules/Payments/Enums/PaymentMethod.php`
 - `backend/Modules/Payments/Enums/PaymentStatus.php`

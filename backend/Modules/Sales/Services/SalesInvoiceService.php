@@ -7,9 +7,15 @@ namespace Modules\Sales\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Inventory\DTOs\RecordStockMovementData;
+use Modules\Inventory\Enums\StockMovementType;
+use Modules\Inventory\Services\StockService;
+use Modules\Inventory\Services\WarehouseService;
 use Modules\Sales\DTOs\CreateSalesInvoiceData;
 use Modules\Sales\Enums\SalesInvoiceStatus;
 use Modules\Sales\Events\SalesInvoicePosted;
+use Modules\Sales\Events\SalesInvoicePostedToLedger;
+use Modules\Sales\Events\SalesInvoiceVoided;
 use Modules\Sales\Models\SalesInvoice;
 use Shared\Enums\DocumentType;
 use Shared\Exceptions\ApiException;
@@ -21,6 +27,8 @@ final class SalesInvoiceService
     public function __construct(
         private readonly DatabaseManager $db,
         private readonly DocumentNumberingService $numberingService,
+        private readonly StockService $stockService,
+        private readonly WarehouseService $warehouseService,
     ) {}
 
     public function create(CreateSalesInvoiceData $data, ?string $userId = null): SalesInvoice
@@ -80,6 +88,7 @@ final class SalesInvoiceService
                 'invoice_number' => $invoiceNumber,
                 'sales_quotation_id' => $data->quotationId,
                 'customer_id' => $data->customerId,
+                'warehouse_id' => $data->warehouseId,
                 'status' => SalesInvoiceStatus::Draft,
                 'issue_date' => $data->issueDate,
                 'due_date' => $data->dueDate,
@@ -200,6 +209,7 @@ final class SalesInvoiceService
 
             $invoice->update([
                 'customer_id' => $data->customerId,
+                'warehouse_id' => $data->warehouseId ?? $invoice->warehouse_id,
                 'issue_date' => $data->issueDate,
                 'due_date' => $data->dueDate,
                 'currency' => $data->currency,
@@ -257,8 +267,56 @@ final class SalesInvoiceService
                 );
             }
 
+            // Determine fulfillment warehouse: specified warehouse, or default active warehouse
+            $warehouseId = $invoice->warehouse_id;
+            if (empty($warehouseId)) {
+                $defaultWarehouse = $this->warehouseService->getDefault();
+                if ($defaultWarehouse === null) {
+                    throw ApiException::unprocessable(
+                        'No active warehouse found to fulfill stock delivery for this invoice.',
+                        'NO_ACTIVE_WAREHOUSE'
+                    );
+                }
+                $warehouseId = (string) $defaultWarehouse->id;
+                $invoice->warehouse_id = $warehouseId;
+            }
+
+            $cogsCents = 0;
+            $lineDetails = [];
+
+            // Decrement inventory stock atomically for each line item
+            foreach ($invoice->items as $item) {
+                if ($item->quantity <= 0) {
+                    continue;
+                }
+
+                $movement = $this->stockService->recordMovement(new RecordStockMovementData(
+                    warehouseId: $warehouseId,
+                    productId: $item->product_id,
+                    type: StockMovementType::SalesDelivery,
+                    quantity: $item->quantity,
+                    unitCostCents: 0,
+                    sourceType: 'sales_invoice',
+                    sourceId: $invoice->id,
+                    userId: $userId,
+                    notes: "Delivery for Sales Invoice {$invoice->invoice_number}",
+                ));
+
+                $cogsCents += $item->quantity * $movement->unit_cost_cents;
+
+                $lineDetails[] = [
+                    'product_id' => $item->product_id,
+                    'quantity' => $item->quantity,
+                    'unit_price_cents' => $item->unit_price_cents,
+                    'subtotal_cents' => $item->subtotal_cents,
+                    'tax_cents' => $item->tax_cents,
+                    'total_cents' => $item->total_cents,
+                ];
+            }
+
             $invoice->update([
                 'status' => SalesInvoiceStatus::Posted,
+                'warehouse_id' => $warehouseId,
                 'posted_at' => now(),
                 'posted_by_user_id' => $userId,
                 'amount_due_cents' => $invoice->total_cents,
@@ -269,6 +327,73 @@ final class SalesInvoiceService
             $tenantId = $tenant !== null ? (string) $tenant->id : '';
 
             SalesInvoicePosted::dispatch($invoice, $tenantId, $userId);
+            SalesInvoicePostedToLedger::dispatch($invoice, $tenantId, $userId, $cogsCents, $lineDetails);
+
+            return $invoice->load('items');
+        }, 3);
+    }
+
+    public function void(string $id, string $userId): SalesInvoice
+    {
+        return $this->db->connection('tenant')->transaction(function () use ($id, $userId): SalesInvoice {
+            /** @var SalesInvoice|null $invoice */
+            $invoice = SalesInvoice::with('items')->where('id', $id)->lockForUpdate()->first();
+
+            if ($invoice === null) {
+                throw ApiException::notFound("Sales invoice '{$id}' not found.", 'INVOICE_NOT_FOUND');
+            }
+
+            if ($invoice->amount_paid_cents > 0) {
+                throw ApiException::unprocessable(
+                    'Cannot void sales invoice with recorded payments. Settle or reverse payments before voiding.',
+                    'INVOICE_HAS_PAYMENTS'
+                );
+            }
+
+            if ($invoice->status !== SalesInvoiceStatus::Posted) {
+                throw ApiException::unprocessable(
+                    "Only posted sales invoices can be voided. Current status is '{$invoice->status->value}'.",
+                    'INVALID_INVOICE_STATUS'
+                );
+            }
+
+            $warehouseId = $invoice->warehouse_id;
+            if (empty($warehouseId)) {
+                $defaultWarehouse = $this->warehouseService->getDefault();
+                $warehouseId = $defaultWarehouse !== null ? (string) $defaultWarehouse->id : null;
+            }
+
+            // Restore inventory stock atomically for each line item
+            if (! empty($warehouseId)) {
+                foreach ($invoice->items as $item) {
+                    if ($item->quantity <= 0) {
+                        continue;
+                    }
+
+                    $this->stockService->recordMovement(new RecordStockMovementData(
+                        warehouseId: $warehouseId,
+                        productId: $item->product_id,
+                        type: StockMovementType::AdjustmentIn,
+                        quantity: $item->quantity,
+                        unitCostCents: 0,
+                        sourceType: 'sales_invoice_void',
+                        sourceId: $invoice->id,
+                        userId: $userId,
+                        notes: "Stock return on voiding Sales Invoice {$invoice->invoice_number}",
+                    ));
+                }
+            }
+
+            $invoice->update([
+                'status' => SalesInvoiceStatus::Void,
+                'voided_at' => now(),
+                'amount_due_cents' => 0,
+            ]);
+
+            $tenant = TenantContext::get();
+            $tenantId = $tenant !== null ? (string) $tenant->id : '';
+
+            SalesInvoiceVoided::dispatch($invoice, $tenantId, $userId, true);
 
             return $invoice->load('items');
         }, 3);

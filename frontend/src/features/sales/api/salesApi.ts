@@ -9,6 +9,7 @@ import type {
 } from '../types/sales.types';
 
 export interface ConvertQuotationPayload {
+  warehouse_id?: string;
   due_date?: string;
   post_immediately?: boolean;
 }
@@ -81,6 +82,10 @@ export const salesApi = {
 
   postInvoice: (id: string): Promise<ApiSuccessResponse<SalesInvoice>> => {
     return apiClient.post<SalesInvoice>(`/sales/invoices/${id}/post`);
+  },
+
+  voidInvoice: (id: string): Promise<ApiSuccessResponse<SalesInvoice>> => {
+    return apiClient.post<SalesInvoice>(`/sales/invoices/${id}/void`);
   },
 
   getCustomerReceivableBalance: (

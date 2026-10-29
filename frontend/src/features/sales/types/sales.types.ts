@@ -21,6 +21,7 @@ export interface SalesQuotation {
   id: string;
   quotation_number: string;
   customer_id: string;
+  warehouse_id?: string | null;
   status: SalesQuotationStatus;
   status_label: string;
   issue_date: string;
@@ -61,6 +62,7 @@ export interface SalesInvoice {
   invoice_number: string;
   sales_quotation_id: string | null;
   customer_id: string;
+  warehouse_id?: string | null;
   status: SalesInvoiceStatus;
   status_label: string;
   issue_date: string;
@@ -94,6 +96,7 @@ export interface SalesItemFormData {
 
 export interface CreateQuotationFormData {
   customer_id: string;
+  warehouse_id?: string;
   issue_date: string;
   expiry_date?: string;
   currency?: string;
@@ -103,6 +106,7 @@ export interface CreateQuotationFormData {
 
 export interface CreateInvoiceFormData {
   customer_id: string;
+  warehouse_id?: string;
   issue_date: string;
   due_date: string;
   currency?: string;

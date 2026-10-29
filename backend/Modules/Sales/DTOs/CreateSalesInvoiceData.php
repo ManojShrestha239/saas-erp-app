@@ -15,6 +15,7 @@ final readonly class CreateSalesInvoiceData
         public string $dueDate,
         public string $currency = 'USD',
         public ?string $quotationId = null,
+        public ?string $warehouseId = null,
         public ?string $notes = null,
         public array $items = [],
     ) {}
@@ -37,6 +38,7 @@ final readonly class CreateSalesInvoiceData
             dueDate: (string) $data['due_date'],
             currency: (string) ($data['currency'] ?? 'USD'),
             quotationId: isset($data['sales_quotation_id']) ? (string) $data['sales_quotation_id'] : (isset($data['quotation_id']) ? (string) $data['quotation_id'] : null),
+            warehouseId: isset($data['warehouse_id']) ? (string) $data['warehouse_id'] : null,
             notes: isset($data['notes']) ? (string) $data['notes'] : null,
             items: array_values($items),
         );
