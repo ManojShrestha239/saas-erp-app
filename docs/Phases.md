@@ -44,7 +44,7 @@
 ## Phase 4: Purchasing, Sales & Invoicing Engines
 
 - [x] Gap-free per-tenant document numbering service.
-- [ ] Purchase Orders → goods receipt → Supplier Bills with AP balance tracking.
+- [x] Purchase Orders → goods receipt → Supplier Bills with AP balance tracking.
 - [ ] Sales Quotations → conversion → Sales Invoices with AR balance tracking.
 - [ ] Payments and allocations (receipts and supplier payments), unallocated credit handling.
 - [ ] Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)`.

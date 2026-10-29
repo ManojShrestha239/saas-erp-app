@@ -37,9 +37,7 @@ abstract class ModuleServiceProvider extends ServiceProvider
 
     protected function registerMigrations(): void
     {
-        $migrationPath = base_path('Modules/'.$this->getModuleName().'/Database/Migrations');
-        if (is_dir($migrationPath)) {
-            $this->loadMigrationsFrom($migrationPath);
-        }
+        // Tenant module migrations are deliberately isolated from central migrations.
+        // They are executed against the 'tenant' connection per tenant via ProvisionTenantDatabase and TenantsMigrateCommand.
     }
 }

@@ -1,0 +1,32 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Modules\Purchasing\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+use Modules\Purchasing\Models\GoodsReceiptItem;
+
+/**
+ * @mixin GoodsReceiptItem
+ */
+final class GoodsReceiptItemResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'goods_receipt_id' => $this->goods_receipt_id,
+            'purchase_order_item_id' => $this->purchase_order_item_id,
+            'product_id' => $this->product_id,
+            'quantity_received' => $this->quantity_received,
+            'unit_cost_cents' => $this->unit_cost_cents,
+            'created_at' => $this->created_at?->toIso8601String(),
+            'updated_at' => $this->updated_at?->toIso8601String(),
+        ];
+    }
+}

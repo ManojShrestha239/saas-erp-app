@@ -19,7 +19,10 @@ final class SharedServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        $centralMigrationsPath = database_path('migrations/central');
+        if (is_dir($centralMigrationsPath)) {
+            $this->loadMigrationsFrom($centralMigrationsPath);
+        }
     }
 
     private function registerModules(): void
