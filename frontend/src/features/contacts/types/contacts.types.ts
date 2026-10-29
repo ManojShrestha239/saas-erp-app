@@ -53,3 +53,84 @@ export interface ContactFilters {
   page?: number;
   per_page?: number;
 }
+
+export type AgingBucket = 'current' | 'days_1_30' | 'days_31_60' | 'days_61_90' | 'days_over_90';
+
+export interface AgingDocument {
+  id: string;
+  invoice_number?: string;
+  bill_number?: string;
+  issue_date?: string;
+  bill_date?: string;
+  due_date: string;
+  total_cents: number;
+  amount_paid_cents: number;
+  amount_due_cents: number;
+  days_overdue: number;
+  bucket: AgingBucket;
+}
+
+export interface AgingData {
+  contact: ContactItem;
+  aging_type: 'customer' | 'supplier';
+  as_of_date: string;
+  current_cents: number;
+  days_1_30_cents: number;
+  days_31_60_cents: number;
+  days_61_90_cents: number;
+  days_over_90_cents: number;
+  total_due_cents: number;
+  unallocated_amount_cents: number;
+  net_balance_cents: number;
+  documents: AgingDocument[];
+}
+
+export interface StatementTransaction {
+  id: string;
+  date: string;
+  due_date: string | null;
+  document_number: string;
+  type: string;
+  description: string;
+  debit_cents: number;
+  credit_cents: number;
+  amount_due_cents: number;
+  status: string;
+  running_balance_cents: number;
+}
+
+export interface StatementSummary {
+  opening_balance_cents: number;
+  total_debits_cents: number;
+  total_credits_cents: number;
+  closing_balance_cents: number;
+  unallocated_amount_cents: number;
+  net_balance_due_cents: number;
+}
+
+export interface ContactStatement {
+  contact: ContactItem;
+  company: {
+    name: string;
+    tax_id: string | null;
+    address: string | null;
+    email: string | null;
+    phone: string | null;
+    bank_details: string | null;
+    currency: string;
+  };
+  statement_type: 'customer' | 'supplier';
+  start_date: string;
+  end_date: string;
+  currency: string;
+  summary: StatementSummary;
+  aging: {
+    current_cents: number;
+    days_1_30_cents: number;
+    days_31_60_cents: number;
+    days_61_90_cents: number;
+    days_over_90_cents: number;
+    total_due_cents: number;
+  };
+  transactions: StatementTransaction[];
+}

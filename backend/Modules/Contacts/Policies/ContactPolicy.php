@@ -33,6 +33,13 @@ final class ContactPolicy
         };
     }
 
+    public function viewStatement(Authorizable $user, Contact $contact): bool
+    {
+        return $this->view($user, $contact)
+            || $user->can(TenantPermission::ReportsFinancial->value)
+            || $user->can(TenantPermission::AccountingManage->value);
+    }
+
     public function create(Authorizable $user, ?string $type = null): bool
     {
         if ($type === ContactType::Customer->value) {

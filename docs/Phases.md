@@ -49,7 +49,7 @@
 - [x] Payments and allocations (receipts and supplier payments), unallocated credit handling.
 - [x] Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)`.
 - [x] Document PDFs via Browsershot (invoice, quotation, PO).
-- [ ] AR/AP aging buckets on contact statements.
+- [x] AR/AP aging buckets on contact statements.
 - **Exit criteria:** oversell race test passes; posted documents immutable; invoice flow E2E green.
 
 ## Phase 5: Financial Ledger, VAT & Adjustments

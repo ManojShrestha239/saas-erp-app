@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Modules\Contacts\Http\Controllers\ContactController;
 use Modules\Contacts\Http\Controllers\ContactCsvImportController;
+use Modules\Contacts\Http\Controllers\ContactStatementController;
 
 Route::middleware([
     'identify.tenant',
@@ -21,5 +22,8 @@ Route::middleware([
     Route::get('contacts/import/template', [ContactCsvImportController::class, 'template'])->name('contacts.import.template');
     Route::post('contacts/import', [ContactCsvImportController::class, 'store'])->name('contacts.import.store');
     Route::get('contacts/import/{id}', [ContactCsvImportController::class, 'show'])->name('contacts.import.show');
+    Route::get('contacts/{id}/aging', [ContactStatementController::class, 'aging'])->name('contacts.aging');
+    Route::get('contacts/{id}/statement', [ContactStatementController::class, 'statement'])->name('contacts.statement');
+    Route::get('contacts/{id}/statement/pdf', [ContactStatementController::class, 'pdf'])->name('contacts.statement.pdf');
     Route::apiResource('contacts', ContactController::class);
 });

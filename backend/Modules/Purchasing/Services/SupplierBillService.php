@@ -258,4 +258,159 @@ final class SupplierBillService
             return $bill->load('items');
         }, 3);
     }
+
+    /**
+     * @return array{
+     *     as_of_date: string,
+     *     current_cents: int,
+     *     days_1_30_cents: int,
+     *     days_31_60_cents: int,
+     *     days_61_90_cents: int,
+     *     days_over_90_cents: int,
+     *     total_due_cents: int,
+     *     bills: list<array{
+     *         id: string,
+     *         bill_number: string,
+     *         supplier_invoice_number: ?string,
+     *         bill_date: string,
+     *         due_date: string,
+     *         total_cents: int,
+     *         amount_paid_cents: int,
+     *         amount_due_cents: int,
+     *         days_overdue: int,
+     *         bucket: 'current'|'days_1_30'|'days_31_60'|'days_61_90'|'days_over_90'
+     *     }>
+     * }
+     */
+    public function getAgingBuckets(string $supplierId, ?Carbon $asOfDate = null): array
+    {
+        $asOf = ($asOfDate ?? Carbon::today())->startOfDay();
+
+        $bills = SupplierBill::where('supplier_id', $supplierId)
+            ->whereIn('status', [SupplierBillStatus::Posted, SupplierBillStatus::PartiallyPaid])
+            ->where('amount_due_cents', '>', 0)
+            ->orderBy('due_date', 'asc')
+            ->get();
+
+        $currentCents = 0;
+        $days130Cents = 0;
+        $days3160Cents = 0;
+        $days6190Cents = 0;
+        $daysOver90Cents = 0;
+        $billsList = [];
+
+        foreach ($bills as $bill) {
+            $dueDate = Carbon::parse($bill->due_date)->startOfDay();
+            $daysOverdue = (int) $dueDate->diffInDays($asOf, false);
+
+            if ($daysOverdue <= 0) {
+                $bucket = 'current';
+                $currentCents += $bill->amount_due_cents;
+            } elseif ($daysOverdue <= 30) {
+                $bucket = 'days_1_30';
+                $days130Cents += $bill->amount_due_cents;
+            } elseif ($daysOverdue <= 60) {
+                $bucket = 'days_31_60';
+                $days3160Cents += $bill->amount_due_cents;
+            } elseif ($daysOverdue <= 90) {
+                $bucket = 'days_61_90';
+                $days6190Cents += $bill->amount_due_cents;
+            } else {
+                $bucket = 'days_over_90';
+                $daysOver90Cents += $bill->amount_due_cents;
+            }
+
+            $billsList[] = [
+                'id' => (string) $bill->id,
+                'bill_number' => $bill->bill_number,
+                'supplier_invoice_number' => $bill->supplier_invoice_number,
+                'bill_date' => Carbon::parse($bill->bill_date)->toDateString(),
+                'due_date' => $dueDate->toDateString(),
+                'total_cents' => $bill->total_cents,
+                'amount_paid_cents' => $bill->amount_paid_cents,
+                'amount_due_cents' => $bill->amount_due_cents,
+                'days_overdue' => max(0, $daysOverdue),
+                'bucket' => $bucket,
+            ];
+        }
+
+        return [
+            'as_of_date' => $asOf->toDateString(),
+            'current_cents' => $currentCents,
+            'days_1_30_cents' => $days130Cents,
+            'days_31_60_cents' => $days3160Cents,
+            'days_61_90_cents' => $days6190Cents,
+            'days_over_90_cents' => $daysOver90Cents,
+            'total_due_cents' => $currentCents + $days130Cents + $days3160Cents + $days6190Cents + $daysOver90Cents,
+            'bills' => $billsList,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     prior_billed_cents: int,
+     *     transactions: list<array{
+     *         id: string,
+     *         date: string,
+     *         due_date: ?string,
+     *         document_number: string,
+     *         type: string,
+     *         description: string,
+     *         debit_cents: int,
+     *         credit_cents: int,
+     *         amount_due_cents: int,
+     *         status: string
+     *     }>
+     * }
+     */
+    public function getStatementTransactions(string $supplierId, ?Carbon $startDate = null, ?Carbon $endDate = null): array
+    {
+        $validStatuses = [
+            SupplierBillStatus::Posted,
+            SupplierBillStatus::PartiallyPaid,
+            SupplierBillStatus::Paid,
+        ];
+
+        $priorBilledCents = 0;
+        if ($startDate !== null) {
+            $priorBilledCents = (int) SupplierBill::where('supplier_id', $supplierId)
+                ->whereIn('status', $validStatuses)
+                ->whereDate('bill_date', '<', $startDate->toDateString())
+                ->sum('total_cents');
+        }
+
+        $query = SupplierBill::where('supplier_id', $supplierId)
+            ->whereIn('status', $validStatuses);
+
+        if ($startDate !== null) {
+            $query->whereDate('bill_date', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            $query->whereDate('bill_date', '<=', $endDate->toDateString());
+        }
+
+        $bills = $query->orderBy('bill_date', 'asc')->orderBy('bill_number', 'asc')->get();
+
+        $transactions = [];
+        foreach ($bills as $bill) {
+            $transactions[] = [
+                'id' => (string) $bill->id,
+                'date' => Carbon::parse($bill->bill_date)->toDateString(),
+                'due_date' => Carbon::parse($bill->due_date)->toDateString(),
+                'document_number' => $bill->bill_number,
+                'type' => 'bill',
+                'description' => "Supplier Bill {$bill->bill_number}".($bill->supplier_invoice_number ? " (Inv: {$bill->supplier_invoice_number})" : ''),
+                'debit_cents' => 0,
+                'credit_cents' => $bill->total_cents,
+                'amount_due_cents' => $bill->amount_due_cents,
+                'status' => $bill->status->value,
+            ];
+        }
+
+        return [
+            'prior_billed_cents' => $priorBilledCents,
+            'transactions' => $transactions,
+        ];
+    }
 }

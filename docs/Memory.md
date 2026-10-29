@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Document PDFs via Browsershot (invoice, quotation, PO) (Completed)
-- **Last Completed Task:** `feat/document-pdf-browsershot`: Implemented pixel-perfect document PDF generation via Spatie Browsershot and headless Chromium in Docker (`nexuserp-app`). Created generic `PdfRendererService` in `Shared/Services` supporting `renderHtml`, `renderView`, `streamView`, and `downloadView` with Chromium flags (`--no-sandbox`, `--disable-setuid-sandbox`, `--disable-dev-shm-usage`, `--disable-gpu`) for containerized execution. Updated `ModuleServiceProvider` and `SharedServiceProvider` to automatically load module and shared Blade views (`Modules/{Module}/resources/views` and `Shared/resources/views`). Decoupled module interactions using `getDetails(string $id): ?array` on `ContactService`, `WarehouseService`, and `ProductService` to strictly preserve model boundary isolation in Arch tests. Created reusable, high-density print layout (`pdf/layout.blade.php`) matching Design.md tokens (A4 page size, 12mm margins, tabular numbers, status badges, company metadata, and signature blocks) and specialized document templates: Sales Invoice (`pdf/invoice.blade.php`), Sales Quotation (`pdf/quotation.blade.php`), and Purchase Order (`pdf/purchase_order.blade.php`). Added streaming/download endpoints (`/api/v1/sales/invoices/{id}/pdf`, `/api/v1/sales/quotations/{id}/pdf`, `/api/v1/purchasing/orders/{id}/pdf`) protected by multi-tenant resolution and RBAC policies (`invoices.view`, `quotations.view`, `purchases.view`). Added frontend "View / Print PDF" actions with `FileText` icons in Invoices and Quotations data tables. Full CI gate clean: 266 backend Pest tests passing (1,700 assertions), Pint clean across 348 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 sixth item.
-- **Current Focus:** User review and approval to commit `feat/document-pdf-browsershot` and merge into `develop`.
-- **Working branch:** `feat/document-pdf-browsershot`
+- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines (ALL 7 ITEMS COMPLETED) · Active Task: AR/AP aging buckets on contact statements (Completed)
+- **Last Completed Task:** `feat/contact-statements-aging-buckets`: Implemented AR/AP aging calculation engine and Contact Statements with printable/downloadable PDFs via Browsershot. Built `ContactStatementService` in `Modules/Contacts/Services` orchestrating domain data across `SalesInvoiceService`, `SupplierBillService`, and `PaymentService` while strictly honoring ArchTest model isolation. Calculates chronological aging buckets (`current`, `days_1_30`, `days_31_60`, `days_61_90`, `days_over_90`) in integer minor units (`*_cents` BIGINT) with zero floats, accounting for partial payment reductions and unallocated advance credits/debits. Implemented complete Statement of Account activity ledger with opening balance forward, chronological transaction collation (invoices, bills, receipts, disbursements), cumulative running balances, and closing balance due. Created specialized print Blade template `pdf/statement.blade.php` with A4 print layout, company header, statement metadata, aging analysis table, and chronological ledger. Added API endpoints `GET /api/v1/contacts/{id}/aging`, `GET /api/v1/contacts/{id}/statement`, and `GET /api/v1/contacts/{id}/statement/pdf` protected by RBAC policy `viewStatement` and multi-tenant isolation. Built interactive `ContactStatementDialog` frontend component with date pickers, quick presets (This Month, Last Month, Last 30 Days, YTD), customer/supplier role toggle, aging metric cards, summary KPI strip, ledger table, and direct "Print / PDF" export. Wired action into `ContactsIndex` dropdown. Full CI gate clean: 273 backend Pest tests passing (1,763 assertions), Pint clean across 351 files, Larastan Level 8 0 errors, Vitest 59 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 final item.
+- **Current Focus:** User review and approval to commit `feat/contact-statements-aging-buckets` and merge into `develop`, completing Phase 4.
+- **Working branch:** `feat/contact-statements-aging-buckets`
 
 ## Architectural Decisions (Decision Log)
 
@@ -54,6 +54,7 @@
 | 32  | Payment & Multi-document Allocation Architecture in `Modules\Payments`: payments (`inbound` customer receipts, `outbound` supplier disbursements) and `payment_allocations` tables with `UsesTenantConnection` and `HasUlids`. Sequential gap-free numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), integer minor units (`*_cents` BIGINT), atomic allocations across Sales Invoices and Supplier Bills under `DB::connection('tenant')->transaction(..., 3)` with row-locking (`lockForUpdate()`), excess allocation rejection with 422, unallocated credit/debit advance tracking, decoupled domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), and TanStack DataTable frontend UIs (`/customer-receipts`, `/supplier-payments`). | Full cash reconciliation and multi-document settlement without float inaccuracies; maintains tenant isolation and module decoupling via public service hooks; ready for Phase 5 General Ledger posting. |
 | 33  | Atomic Invoice Posting & Stock Synchronization in `Modules\Sales`: invoice posting (`SalesInvoiceService::post`) executes inside `DB::connection('tenant')->transaction(..., 3)`. Decrements physical inventory atomically via `StockService::recordMovement` with `StockMovementType::SalesDelivery` under pessimistic row-locking (`lockForUpdate()`). Strictly enforces `allow_negative_stock` tenant setting: rolls back with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches stubbed `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details for Phase 5 GL posting. Implemented atomic voiding (`void()`) checking zero payments, restoring stock via `StockMovementType::AdjustmentIn`, and dispatching `SalesInvoiceVoided`. | Guarantees physical inventory reflects invoices atomically without race conditions or overselling; preserves module boundaries via domain services and events; guarantees immutability and complete auditability. |
 | 34  | Browsershot PDF generation engine in `Shared\Services\PdfRendererService` and isolated document views in `Modules/{Module}/resources/views/pdf`: Chromium headless execution in Alpine Docker with container flags (`--no-sandbox`, `--disable-setuid-sandbox`, `--disable-dev-shm-usage`, `--disable-gpu`); module view auto-discovery in `ModuleServiceProvider`; cross-module data passed as associative arrays via `getDetails` on `ContactService`, `WarehouseService`, and `ProductService` preserving strict ArchTest model isolation; unified A4 layout matching Design.md typography, tabular numbers, status badges, and signature blocks. | Pixel-perfect, high-performance vector PDFs with native CSS/print layout capabilities, zero cross-module model bleeding, and full multi-tenant isolation. |
+| 35  | Contact Statements & AR/AP Aging Engine in `Modules\Contacts\Services\ContactStatementService`: Chronological aging buckets (`Current`, `1–30`, `31–60`, `61–90`, `90+`) evaluated against `due_date` using minor units (`*_cents` BIGINT, zero floats); decoupled public domain hooks `getAgingBuckets` and `getStatementTransactions` on `SalesInvoiceService`, `SupplierBillService`, and `PaymentService` preserving model boundary isolation in Arch tests; complete chronological account ledger with opening balance forward, transaction merge/sort, running balances, and closing balance due; printable statement PDF via `PdfRendererService`. | Financial auditability, accurate aging analysis for credit control, zero cross-module model bleeding, and complete customer/supplier transparency. |
 
 ## Conventions Locked In
 
@@ -74,42 +75,31 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/document-pdf-browsershot` into `develop`.
-2. Propose next Phase 4 task: AR/AP aging buckets on contact statements (`feat/contact-statements-aging-buckets`).
+1. Await user review and approval to commit and merge `feat/contact-statements-aging-buckets` into `develop`.
+2. Transition to Phase 5: Financial Ledger, VAT & Adjustments. First task: Chart of Accounts (hierarchy, system accounts protected) and default CoA seeder (`feat/chart-of-accounts`).
 
 ## Key Files Touched (latest)
 
-- `docker/php/Dockerfile`
-- `backend/composer.json`
-- `backend/composer.lock`
-- `backend/config/services.php`
-- `backend/.env.example`
-- `backend/Shared/Providers/ModuleServiceProvider.php`
-- `backend/Shared/Providers/SharedServiceProvider.php`
-- `backend/Shared/Services/PdfRendererService.php`
-- `backend/Shared/resources/views/pdf/layout.blade.php`
-- `backend/Modules/Contacts/Services/ContactService.php`
-- `backend/Modules/Inventory/Services/ProductService.php`
-- `backend/Modules/Inventory/Services/WarehouseService.php`
-- `backend/Modules/Sales/resources/views/pdf/invoice.blade.php`
-- `backend/Modules/Sales/resources/views/pdf/quotation.blade.php`
 - `backend/Modules/Sales/Services/SalesInvoiceService.php`
-- `backend/Modules/Sales/Services/SalesQuotationService.php`
-- `backend/Modules/Sales/Http/Controllers/SalesInvoiceController.php`
-- `backend/Modules/Sales/Http/Controllers/SalesQuotationController.php`
-- `backend/Modules/Sales/Routes/api.php`
-- `backend/Modules/Purchasing/resources/views/pdf/purchase_order.blade.php`
-- `backend/Modules/Purchasing/Services/PurchaseOrderService.php`
-- `backend/Modules/Purchasing/Http/Controllers/PurchaseOrderController.php`
-- `backend/Modules/Purchasing/Routes/api.php`
-- `backend/tests/Feature/Documents/DocumentPdfGenerationTest.php`
-- `frontend/src/features/sales/api/salesApi.ts`
-- `frontend/src/features/sales/pages/InvoicesIndex.tsx`
-- `frontend/src/features/sales/pages/QuotationsIndex.tsx`
+- `backend/Modules/Purchasing/Services/SupplierBillService.php`
+- `backend/Modules/Payments/Services/PaymentService.php`
+- `backend/Modules/Contacts/Services/ContactStatementService.php`
+- `backend/Modules/Contacts/Policies/ContactPolicy.php`
+- `backend/Modules/Contacts/Http/Controllers/ContactStatementController.php`
+- `backend/Modules/Contacts/Routes/api.php`
+- `backend/Modules/Contacts/resources/views/pdf/statement.blade.php`
+- `backend/tests/Feature/Contacts/ContactStatementTest.php`
+- `frontend/src/features/contacts/types/contacts.types.ts`
+- `frontend/src/features/contacts/api/contactsApi.ts`
+- `frontend/src/features/contacts/components/ContactStatementDialog.tsx`
+- `frontend/src/features/contacts/pages/ContactsIndex.tsx`
+- `frontend/src/features/contacts/pages/__tests__/ContactsIndex.test.tsx`
+- `frontend/src/components/ui/dialog.tsx`
 - `docs/Phases.md`
 
 ## Session Log (newest first)
 
+- `2026-10-29`: `feat/contact-statements-aging-buckets`: Implemented AR/AP aging calculation engine and Contact Statements with printable/downloadable PDFs via Browsershot. Built `ContactStatementService` in `Modules/Contacts/Services` orchestrating domain data across `SalesInvoiceService`, `SupplierBillService`, and `PaymentService` while strictly honoring ArchTest model isolation. Calculates chronological aging buckets (`current`, `days_1_30`, `days_31_60`, `days_61_90`, `days_over_90`) in integer minor units (`*_cents` BIGINT) with zero floats, accounting for partial payment reductions and unallocated advance credits/debits. Implemented complete Statement of Account activity ledger with opening balance forward, chronological transaction collation (invoices, bills, receipts, disbursements), cumulative running balances, and closing balance due. Created specialized print Blade template `pdf/statement.blade.php` with A4 print layout, company header, statement metadata, aging analysis table, and chronological ledger. Added API endpoints `GET /api/v1/contacts/{id}/aging`, `GET /api/v1/contacts/{id}/statement`, and `GET /api/v1/contacts/{id}/statement/pdf` protected by RBAC policy `viewStatement` and multi-tenant isolation. Built interactive `ContactStatementDialog` frontend component with date pickers, quick presets (This Month, Last Month, Last 30 Days, YTD), customer/supplier role toggle, aging metric cards, summary KPI strip, ledger table, and direct "Print / PDF" export. Wired action into `ContactsIndex` dropdown. Full CI gate clean: 273 backend Pest tests passing (1,763 assertions), Pint clean across 351 files, Larastan Level 8 0 errors, Vitest 59 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 final item. Phase 4 fully completed!
 - `2026-10-29`: `feat/document-pdf-browsershot`: Implemented document PDF generation engine using Spatie Browsershot and Alpine headless Chromium in Docker. Configured container packages (`chromium`, `nodejs`, `npm`, `puppeteer`) and backend service configuration (`CHROME_PATH`, `NODE_PATH`, `NODE_MODULES_PATH`). Created generic `PdfRendererService` in `Shared/Services` supporting inline streaming and attachment download with sandbox security flags for container stability. Auto-registered module and shared Blade views (`SharedServiceProvider`, `ModuleServiceProvider`). Added `getDetails(string $id): ?array` to `ContactService`, `WarehouseService`, and `ProductService` for clean cross-module data exchange without model coupling. Created unified A4 print layout and individual document templates for Sales Invoices, Sales Quotations, and Purchase Orders. Added streaming endpoints with RBAC authorization (`invoices.view`, `quotations.view`, `purchases.view`) and multi-tenant security. Integrated "View / Print PDF" actions in Invoices and Quotations data tables. Added Pest feature tests in `DocumentPdfGenerationTest.php`. Full CI green: 266 Pest tests passing (1,700 assertions), Pint clean across 348 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 sixth item.
 - `2026-10-29`: `feat/invoice-posting-stock-sync`: Implemented atomic invoice posting with physical inventory synchronization and domain events in `Modules/Sales`. Forward-only tenant migration adding `warehouse_id` (nullable, indexed) to `sales_quotations` and `sales_invoices`. Decoupled module interactions using `StockService` and `WarehouseService` (preserving Arch tests model isolation). On invoice posting, physical stock is decremented atomically inside `DB::connection('tenant')->transaction(..., 3)` using `StockMovementType::SalesDelivery` with pessimistic row locking (`lockForUpdate()`). Enforced tenant `allow_negative_stock` setting: rolls back completely with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches `SalesInvoicePosted` and `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details ready for Phase 5 GL posting. Implemented atomic invoice voiding (`void()`): rejects invoices with payments (422 `INVOICE_HAS_PAYMENTS`), restores stock via `StockMovementType::AdjustmentIn`, sets status to `Void`, `amount_due_cents` to 0, and dispatches `SalesInvoiceVoided`. Oversell race conditions are fully serialized and prevented. Added `POST /api/v1/sales/invoices/{id}/void` endpoint, policies, request validation, resources, and frontend TypeScript contracts. Full CI gate clean: 261 Pest tests passing (1,654 assertions), Pint clean across 346 files, PHPStan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 fifth item.
 

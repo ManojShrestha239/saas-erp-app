@@ -14,6 +14,42 @@ vi.mock('../../api/contactsApi', () => ({
     uploadContactCsv: vi.fn(),
     getContactImportStatus: vi.fn(),
     getContactTemplateUrl: vi.fn().mockReturnValue('/api/v1/contacts/import/template'),
+    getStatement: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'Statement retrieved',
+      data: {
+        contact: {
+          id: '01CONTACT0000000000000001',
+          type: 'customer',
+          type_label: 'Customer',
+          code: 'CUST-000001',
+          name: 'Himalayan Traders Ltd',
+        },
+        company: { name: 'NexusERP', currency: 'USD' },
+        statement_type: 'customer',
+        start_date: '2026-10-01',
+        end_date: '2026-10-29',
+        currency: 'USD',
+        summary: {
+          opening_balance_cents: 1200000,
+          total_debits_cents: 500000,
+          total_credits_cents: 300000,
+          closing_balance_cents: 1400000,
+          unallocated_amount_cents: 0,
+          net_balance_due_cents: 1400000,
+        },
+        aging: {
+          current_cents: 500000,
+          days_1_30_cents: 0,
+          days_31_60_cents: 0,
+          days_61_90_cents: 0,
+          days_over_90_cents: 0,
+          total_due_cents: 500000,
+        },
+        transactions: [],
+      },
+    }),
+    getStatementPdfUrl: vi.fn().mockReturnValue('/api/v1/contacts/01CONTACT0000000000000001/statement/pdf'),
   },
 }));
 
@@ -139,6 +175,27 @@ describe('ContactsIndex', () => {
           type: 'customer',
         })
       );
+    });
+  });
+
+  it('opens Statement & Aging dialog from row actions', async () => {
+    render(<ContactsIndex />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Himalayan Traders Ltd')).toBeInTheDocument();
+    });
+
+    const actionButtons = screen.getAllByRole('button', { name: 'Contact actions' });
+    expect(actionButtons.length).toBeGreaterThanOrEqual(1);
+
+    fireEvent.click(actionButtons[0]!);
+
+    const statementOption = await screen.findByText('Statement & Aging');
+    fireEvent.click(statementOption);
+
+    await waitFor(() => {
+      expect(screen.getByText('Statement of Account & AR/AP Aging Analysis')).toBeInTheDocument();
+      expect(contactsApi.getStatement).toHaveBeenCalled();
     });
   });
 });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Payments\Services;
 
+use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\DatabaseManager;
 use Modules\Payments\DTOs\AllocatePaymentData;
@@ -303,5 +304,79 @@ final class PaymentService
         } elseif ($payableType === 'bill') {
             $this->billService->recordPayment($payableId, $amountCents);
         }
+    }
+
+    /**
+     * @return array{
+     *     prior_paid_cents: int,
+     *     transactions: list<array{
+     *         id: string,
+     *         date: string,
+     *         due_date: null,
+     *         document_number: string,
+     *         type: string,
+     *         description: string,
+     *         debit_cents: int,
+     *         credit_cents: int,
+     *         amount_due_cents: int,
+     *         status: string
+     *     }>
+     * }
+     */
+    public function getStatementTransactions(string $contactId, PaymentType $type, ?Carbon $startDate = null, ?Carbon $endDate = null): array
+    {
+        $priorPaidCents = 0;
+        if ($startDate !== null) {
+            $priorPaidCents = (int) Payment::where('contact_id', $contactId)
+                ->where('type', $type)
+                ->where('status', PaymentStatus::Posted)
+                ->whereDate('payment_date', '<', $startDate->toDateString())
+                ->sum('amount_cents');
+        }
+
+        $query = Payment::where('contact_id', $contactId)
+            ->where('type', $type)
+            ->where('status', PaymentStatus::Posted);
+
+        if ($startDate !== null) {
+            $query->whereDate('payment_date', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            $query->whereDate('payment_date', '<=', $endDate->toDateString());
+        }
+
+        $payments = $query->orderBy('payment_date', 'asc')->orderBy('payment_number', 'asc')->get();
+
+        $transactions = [];
+        foreach ($payments as $payment) {
+            $refText = $payment->reference_number !== null && $payment->reference_number !== ''
+                ? " (Ref: {$payment->reference_number})"
+                : '';
+            $desc = $type === PaymentType::Inbound
+                ? "Customer Receipt {$payment->payment_number}{$refText}"
+                : "Supplier Payment {$payment->payment_number}{$refText}";
+
+            $debitCents = $type === PaymentType::Outbound ? $payment->amount_cents : 0;
+            $creditCents = $type === PaymentType::Inbound ? $payment->amount_cents : 0;
+
+            $transactions[] = [
+                'id' => (string) $payment->id,
+                'date' => Carbon::parse($payment->payment_date)->toDateString(),
+                'due_date' => null,
+                'document_number' => $payment->payment_number,
+                'type' => 'payment',
+                'description' => $desc,
+                'debit_cents' => $debitCents,
+                'credit_cents' => $creditCents,
+                'amount_due_cents' => 0,
+                'status' => $payment->status->value,
+            ];
+        }
+
+        return [
+            'prior_paid_cents' => $priorPaidCents,
+            'transactions' => $transactions,
+        ];
     }
 }

@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { DataTable, DataTableColumnHeader } from '@/components/ui/data-table';
 import { CsvImportDialog } from '@/shared/components/CsvImportDialog';
+import { ContactStatementDialog } from '../components/ContactStatementDialog';
 import { useCan } from '@/features/auth/hooks/useCan';
 import { contactsApi } from '../api/contactsApi';
 import type { ContactItem, ContactFormData, ContactType } from '../types/contacts.types';
@@ -38,6 +39,7 @@ import {
   CheckCircle2,
   AlertCircle,
   FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
 
 function formatMoneyCents(cents: number): string {
@@ -80,6 +82,8 @@ export default function ContactsIndex() {
   const [editingContact, setEditingContact] = useState<ContactItem | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [deletingContact, setDeletingContact] = useState<ContactItem | null>(null);
+  const [statementContact, setStatementContact] = useState<ContactItem | null>(null);
+  const [isStatementOpen, setIsStatementOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -382,7 +386,6 @@ export default function ContactsIndex() {
       header: '',
       cell: ({ row }) => {
         const contact = row.original;
-        if (!hasManageAccess) return null;
 
         return (
           <DropdownMenu>
@@ -391,19 +394,34 @@ export default function ContactsIndex() {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-36">
-              <DropdownMenuItem onClick={() => handleOpenEdit(contact)}>
-                <Edit2 className="mr-2 h-3.5 w-3.5" />
-                <span>Edit</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+            <DropdownMenuContent align="end" className="w-44">
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setDeletingContact(contact)}
+                onClick={() => {
+                  setStatementContact(contact);
+                  setIsStatementOpen(true);
+                }}
               >
-                <Trash2 className="mr-2 h-3.5 w-3.5" />
-                <span>Delete</span>
+                <FileText className="mr-2 h-3.5 w-3.5 text-primary" />
+                <span>Statement & Aging</span>
               </DropdownMenuItem>
+
+              {hasManageAccess && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleOpenEdit(contact)}>
+                    <Edit2 className="mr-2 h-3.5 w-3.5" />
+                    <span>Edit</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setDeletingContact(contact)}
+                  >
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                    <span>Delete</span>
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         );
@@ -798,6 +816,13 @@ export default function ContactsIndex() {
           onSuccess={() => {
             void fetchContacts();
           }}
+        />
+
+        {/* Contact Statement & Aging Dialog */}
+        <ContactStatementDialog
+          open={isStatementOpen}
+          onOpenChange={setIsStatementOpen}
+          contact={statementContact}
         />
       </div>
     </AppLayout>
