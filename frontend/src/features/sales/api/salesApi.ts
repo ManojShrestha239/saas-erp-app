@@ -31,6 +31,10 @@ export const salesApi = {
     return apiClient.get<SalesQuotation>(`/sales/quotations/${id}`);
   },
 
+  getQuotationPdfUrl: (id: string, download = false): string => {
+    return `/api/v1/sales/quotations/${id}/pdf${download ? '?download=1' : ''}`;
+  },
+
   createQuotation: (data: CreateQuotationFormData): Promise<ApiSuccessResponse<SalesQuotation>> => {
     return apiClient.post<SalesQuotation>('/sales/quotations', data);
   },
@@ -63,6 +67,10 @@ export const salesApi = {
 
   getInvoice: (id: string): Promise<ApiSuccessResponse<SalesInvoice>> => {
     return apiClient.get<SalesInvoice>(`/sales/invoices/${id}`);
+  },
+
+  getInvoicePdfUrl: (id: string, download = false): string => {
+    return `/api/v1/sales/invoices/${id}/pdf${download ? '?download=1' : ''}`;
   },
 
   createInvoice: (data: CreateInvoiceFormData): Promise<ApiSuccessResponse<SalesInvoice>> => {

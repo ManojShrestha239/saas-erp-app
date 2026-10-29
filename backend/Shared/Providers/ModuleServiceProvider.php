@@ -15,6 +15,7 @@ abstract class ModuleServiceProvider extends ServiceProvider
     {
         $this->registerRoutes();
         $this->registerMigrations();
+        $this->registerViews();
     }
 
     protected function registerRoutes(): void
@@ -39,5 +40,13 @@ abstract class ModuleServiceProvider extends ServiceProvider
     {
         // Tenant module migrations are deliberately isolated from central migrations.
         // They are executed against the 'tenant' connection per tenant via ProvisionTenantDatabase and TenantsMigrateCommand.
+    }
+
+    protected function registerViews(): void
+    {
+        $viewsPath = base_path('Modules/'.$this->getModuleName().'/resources/views');
+        if (is_dir($viewsPath)) {
+            $this->loadViewsFrom($viewsPath, strtolower($this->getModuleName()));
+        }
     }
 }

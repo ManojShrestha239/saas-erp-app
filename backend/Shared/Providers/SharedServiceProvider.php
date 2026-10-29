@@ -23,6 +23,11 @@ final class SharedServiceProvider extends ServiceProvider
         if (is_dir($centralMigrationsPath)) {
             $this->loadMigrationsFrom($centralMigrationsPath);
         }
+
+        $sharedViewsPath = base_path('Shared/resources/views');
+        if (is_dir($sharedViewsPath)) {
+            $this->loadViewsFrom($sharedViewsPath, 'shared');
+        }
     }
 
     private function registerModules(): void

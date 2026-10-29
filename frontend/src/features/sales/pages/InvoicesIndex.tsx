@@ -43,6 +43,7 @@ import {
   Lock,
   Wallet,
   AlertTriangle,
+  FileText,
 } from 'lucide-react';
 
 function formatMoneyCents(cents: number, currency = 'USD'): string {
@@ -480,6 +481,11 @@ export default function InvoicesIndex() {
               <DropdownMenuItem onClick={() => handleViewDetail(inv)}>
                 <Eye className="mr-2 h-3.5 w-3.5" />
                 <span>View Details</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => window.open(salesApi.getInvoicePdfUrl(inv.id), '_blank')}>
+                <FileText className="mr-2 h-3.5 w-3.5" />
+                <span>View / Print PDF</span>
               </DropdownMenuItem>
 
               {canManageSales && isDraft && (

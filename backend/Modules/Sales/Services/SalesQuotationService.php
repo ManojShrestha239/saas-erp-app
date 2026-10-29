@@ -7,6 +7,8 @@ namespace Modules\Sales\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Contacts\Services\ContactService;
+use Modules\Inventory\Services\ProductService;
 use Modules\Sales\DTOs\CreateSalesInvoiceData;
 use Modules\Sales\DTOs\CreateSalesQuotationData;
 use Modules\Sales\DTOs\SalesInvoiceItemData;
@@ -25,6 +27,8 @@ final class SalesQuotationService
         private readonly DatabaseManager $db,
         private readonly DocumentNumberingService $numberingService,
         private readonly SalesInvoiceService $invoiceService,
+        private readonly ContactService $contactService,
+        private readonly ProductService $productService,
     ) {}
 
     public function create(CreateSalesQuotationData $data, ?string $userId = null): SalesQuotation
@@ -295,5 +299,57 @@ final class SalesQuotationService
 
             return $invoice;
         }, 3);
+    }
+
+    /**
+     * @return array{
+     *     quotation: SalesQuotation,
+     *     customer: array{id: string, code: string, name: string, type: string, email: ?string, phone: ?string, tax_id: ?string, billing_address: ?array<string, mixed>, shipping_address: ?array<string, mixed>, payment_terms_days: int}|null,
+     *     company: array{name: string, tax_id: ?string, address: ?string, email: ?string, phone: ?string, currency: string},
+     *     items: list<array{product_name: string, sku: string, description: ?string, quantity: int, unit_price_cents: int, tax_rate_percent: int, tax_cents: int, total_cents: int}>
+     * }
+     */
+    public function getPdfData(string $id): array
+    {
+        $quotation = $this->find($id);
+        $customer = $this->contactService->getDetails($quotation->customer_id);
+
+        $tenant = TenantContext::get();
+        /** @var array<string, string> $settings */
+        $settings = $this->db->connection('tenant')
+            ->table('settings')
+            ->pluck('value', 'key')
+            ->all();
+
+        $company = [
+            'name' => $settings['company_name'] ?? ($tenant !== null ? ucfirst($tenant->slug) : 'NexusERP Company'),
+            'tax_id' => $settings['company_tax_id'] ?? $settings['tax_number'] ?? null,
+            'address' => $settings['company_address'] ?? null,
+            'email' => $settings['company_email'] ?? null,
+            'phone' => $settings['company_phone'] ?? null,
+            'currency' => $quotation->currency,
+        ];
+
+        $items = [];
+        foreach ($quotation->items as $item) {
+            $product = $this->productService->getDetails($item->product_id);
+            $items[] = [
+                'product_name' => $product !== null ? $product['name'] : 'Product',
+                'sku' => $product !== null ? $product['sku'] : $item->product_id,
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_price_cents' => $item->unit_price_cents,
+                'tax_rate_percent' => $item->tax_rate_percent,
+                'tax_cents' => $item->tax_cents,
+                'total_cents' => $item->total_cents,
+            ];
+        }
+
+        return [
+            'quotation' => $quotation,
+            'customer' => $customer,
+            'company' => $company,
+            'items' => $items,
+        ];
     }
 }

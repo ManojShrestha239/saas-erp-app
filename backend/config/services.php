@@ -41,4 +41,10 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI', '/api/v1/auth/google/callback'),
     ],
 
+    'browsershot' => [
+        'chrome_path' => env('CHROME_PATH', '/usr/bin/chromium'),
+        'node_path' => env('NODE_PATH', '/usr/bin/node'),
+        'node_modules_path' => env('NODE_MODULES_PATH', '/usr/local/lib/node_modules'),
+    ],
+
 ];

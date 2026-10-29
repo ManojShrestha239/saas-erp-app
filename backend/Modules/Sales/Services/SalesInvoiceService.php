@@ -7,8 +7,10 @@ namespace Modules\Sales\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Contacts\Services\ContactService;
 use Modules\Inventory\DTOs\RecordStockMovementData;
 use Modules\Inventory\Enums\StockMovementType;
+use Modules\Inventory\Services\ProductService;
 use Modules\Inventory\Services\StockService;
 use Modules\Inventory\Services\WarehouseService;
 use Modules\Sales\DTOs\CreateSalesInvoiceData;
@@ -29,6 +31,8 @@ final class SalesInvoiceService
         private readonly DocumentNumberingService $numberingService,
         private readonly StockService $stockService,
         private readonly WarehouseService $warehouseService,
+        private readonly ContactService $contactService,
+        private readonly ProductService $productService,
     ) {}
 
     public function create(CreateSalesInvoiceData $data, ?string $userId = null): SalesInvoice
@@ -439,5 +443,58 @@ final class SalesInvoiceService
 
             return $invoice->load('items');
         }, 3);
+    }
+
+    /**
+     * @return array{
+     *     invoice: SalesInvoice,
+     *     customer: array{id: string, code: string, name: string, type: string, email: ?string, phone: ?string, tax_id: ?string, billing_address: ?array<string, mixed>, shipping_address: ?array<string, mixed>, payment_terms_days: int}|null,
+     *     company: array{name: string, tax_id: ?string, address: ?string, email: ?string, phone: ?string, bank_details: ?string, currency: string},
+     *     items: list<array{product_name: string, sku: string, description: ?string, quantity: int, unit_price_cents: int, tax_rate_percent: int, tax_cents: int, total_cents: int}>
+     * }
+     */
+    public function getPdfData(string $id): array
+    {
+        $invoice = $this->find($id);
+        $customer = $this->contactService->getDetails($invoice->customer_id);
+
+        $tenant = TenantContext::get();
+        /** @var array<string, string> $settings */
+        $settings = $this->db->connection('tenant')
+            ->table('settings')
+            ->pluck('value', 'key')
+            ->all();
+
+        $company = [
+            'name' => $settings['company_name'] ?? ($tenant !== null ? ucfirst($tenant->slug) : 'NexusERP Company'),
+            'tax_id' => $settings['company_tax_id'] ?? $settings['tax_number'] ?? null,
+            'address' => $settings['company_address'] ?? null,
+            'email' => $settings['company_email'] ?? null,
+            'phone' => $settings['company_phone'] ?? null,
+            'bank_details' => $settings['bank_details'] ?? null,
+            'currency' => $invoice->currency,
+        ];
+
+        $items = [];
+        foreach ($invoice->items as $item) {
+            $product = $this->productService->getDetails($item->product_id);
+            $items[] = [
+                'product_name' => $product !== null ? $product['name'] : 'Product',
+                'sku' => $product !== null ? $product['sku'] : $item->product_id,
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_price_cents' => $item->unit_price_cents,
+                'tax_rate_percent' => $item->tax_rate_percent,
+                'tax_cents' => $item->tax_cents,
+                'total_cents' => $item->total_cents,
+            ];
+        }
+
+        return [
+            'invoice' => $invoice,
+            'customer' => $customer,
+            'company' => $company,
+            'items' => $items,
+        ];
     }
 }

@@ -10,7 +10,18 @@ RUN apk add --no-cache \
     unzip \
     supervisor \
     bash \
-    postgresql-client
+    postgresql-client \
+    nodejs \
+    npm \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
+
+# Install Puppeteer globally without downloading bundled Chromium
+RUN PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true npm install -g puppeteer
 
 # Install PHP extensions via official installer helper
 ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/

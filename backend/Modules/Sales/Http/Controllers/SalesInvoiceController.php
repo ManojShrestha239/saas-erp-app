@@ -7,12 +7,14 @@ namespace Modules\Sales\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Modules\Sales\Http\Requests\StoreSalesInvoiceRequest;
 use Modules\Sales\Http\Resources\SalesInvoiceResource;
 use Modules\Sales\Models\SalesInvoice;
 use Modules\Sales\Services\SalesInvoiceService;
 use Shared\Responses\ApiResponse;
+use Shared\Services\PdfRendererService;
 
 final class SalesInvoiceController extends Controller
 {
@@ -141,5 +143,20 @@ final class SalesInvoiceController extends Controller
             ],
             message: 'Customer outstanding receivable balance retrieved successfully.'
         );
+    }
+
+    public function pdf(string $id, Request $request, PdfRendererService $pdfService): Response
+    {
+        $invoice = $this->invoiceService->find($id);
+        Gate::authorize('view', $invoice);
+
+        $data = $this->invoiceService->getPdfData($id);
+        $filename = "{$invoice->invoice_number}.pdf";
+
+        if ($request->query('download') === '1') {
+            return $pdfService->downloadView('sales::pdf.invoice', $data, $filename);
+        }
+
+        return $pdfService->streamView('sales::pdf.invoice', $data, $filename);
     }
 }

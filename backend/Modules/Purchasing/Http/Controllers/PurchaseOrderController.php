@@ -7,6 +7,7 @@ namespace Modules\Purchasing\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Modules\Purchasing\Http\Requests\StorePurchaseOrderRequest;
 use Modules\Purchasing\Http\Resources\PurchaseOrderResource;
@@ -14,6 +15,7 @@ use Modules\Purchasing\Models\PurchaseOrder;
 use Modules\Purchasing\Services\PurchaseOrderService;
 use Shared\Exceptions\ApiException;
 use Shared\Responses\ApiResponse;
+use Shared\Services\PdfRendererService;
 
 final class PurchaseOrderController extends Controller
 {
@@ -104,5 +106,24 @@ final class PurchaseOrderController extends Controller
             data: new PurchaseOrderResource($cancelledPo),
             message: 'Purchase order cancelled successfully.'
         );
+    }
+
+    public function pdf(string $id, Request $request, PdfRendererService $pdfService): Response
+    {
+        $po = $this->poService->find($id);
+        if ($po === null) {
+            throw ApiException::notFound("Purchase order '{$id}' not found.", 'PURCHASE_ORDER_NOT_FOUND');
+        }
+
+        Gate::authorize('view', $po);
+
+        $data = $this->poService->getPdfData($id);
+        $filename = "{$po->order_number}.pdf";
+
+        if ($request->query('download') === '1') {
+            return $pdfService->downloadView('purchasing::pdf.purchase_order', $data, $filename);
+        }
+
+        return $pdfService->streamView('purchasing::pdf.purchase_order', $data, $filename);
     }
 }

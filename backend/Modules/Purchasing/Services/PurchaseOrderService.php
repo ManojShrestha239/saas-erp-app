@@ -7,6 +7,9 @@ namespace Modules\Purchasing\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Contacts\Services\ContactService;
+use Modules\Inventory\Services\ProductService;
+use Modules\Inventory\Services\WarehouseService;
 use Modules\Purchasing\DTOs\CreatePurchaseOrderData;
 use Modules\Purchasing\Enums\PurchaseOrderStatus;
 use Modules\Purchasing\Events\PurchaseOrderApproved;
@@ -14,12 +17,16 @@ use Modules\Purchasing\Models\PurchaseOrder;
 use Shared\Enums\DocumentType;
 use Shared\Exceptions\ApiException;
 use Shared\Services\DocumentNumberingService;
+use Shared\Tenancy\TenantContext;
 
 final class PurchaseOrderService
 {
     public function __construct(
         private readonly DatabaseManager $db,
         private readonly DocumentNumberingService $numberingService,
+        private readonly ContactService $contactService,
+        private readonly WarehouseService $warehouseService,
+        private readonly ProductService $productService,
     ) {}
 
     public function create(CreatePurchaseOrderData $data): PurchaseOrder
@@ -188,5 +195,64 @@ final class PurchaseOrderService
     public function find(string $id): ?PurchaseOrder
     {
         return PurchaseOrder::with(['items', 'goodsReceipts.items'])->find($id);
+    }
+
+    /**
+     * @return array{
+     *     order: PurchaseOrder,
+     *     supplier: array{id: string, code: string, name: string, type: string, email: ?string, phone: ?string, tax_id: ?string, billing_address: ?array<string, mixed>, shipping_address: ?array<string, mixed>, payment_terms_days: int}|null,
+     *     warehouse: array{id: string, name: string, code: string, address: ?string, is_default: bool, is_active: bool}|null,
+     *     company: array{name: string, tax_id: ?string, address: ?string, email: ?string, phone: ?string, currency: string},
+     *     items: list<array{product_name: string, sku: string, description: ?string, quantity: int, unit_cost_cents: int, tax_rate_percent: int, tax_cents: int, total_cents: int}>
+     * }
+     */
+    public function getPdfData(string $id): array
+    {
+        $order = $this->find($id);
+        if ($order === null) {
+            throw ApiException::notFound("Purchase order '{$id}' not found.", 'PURCHASE_ORDER_NOT_FOUND');
+        }
+
+        $supplier = $this->contactService->getDetails($order->supplier_id);
+        $warehouse = $order->warehouse_id ? $this->warehouseService->getDetails($order->warehouse_id) : null;
+
+        $tenant = TenantContext::get();
+        /** @var array<string, string> $settings */
+        $settings = $this->db->connection('tenant')
+            ->table('settings')
+            ->pluck('value', 'key')
+            ->all();
+
+        $company = [
+            'name' => $settings['company_name'] ?? ($tenant !== null ? ucfirst($tenant->slug) : 'NexusERP Company'),
+            'tax_id' => $settings['company_tax_id'] ?? $settings['tax_number'] ?? null,
+            'address' => $settings['company_address'] ?? null,
+            'email' => $settings['company_email'] ?? null,
+            'phone' => $settings['company_phone'] ?? null,
+            'currency' => $order->currency,
+        ];
+
+        $items = [];
+        foreach ($order->items as $item) {
+            $product = $this->productService->getDetails($item->product_id);
+            $items[] = [
+                'product_name' => $product !== null ? $product['name'] : 'Product',
+                'sku' => $product !== null ? $product['sku'] : $item->product_id,
+                'description' => $item->notes ?? ($product !== null ? $product['description'] : null),
+                'quantity' => $item->quantity_ordered,
+                'unit_cost_cents' => $item->unit_cost_cents,
+                'tax_rate_percent' => $item->tax_rate_percent,
+                'tax_cents' => $item->tax_cents,
+                'total_cents' => $item->total_cents,
+            ];
+        }
+
+        return [
+            'order' => $order,
+            'supplier' => $supplier,
+            'warehouse' => $warehouse,
+            'company' => $company,
+            'items' => $items,
+        ];
     }
 }

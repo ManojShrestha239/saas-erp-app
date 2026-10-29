@@ -96,6 +96,26 @@ final class WarehouseService
         return Warehouse::find($id);
     }
 
+    /**
+     * @return array{id: string, name: string, code: string, address: ?string, is_default: bool, is_active: bool}|null
+     */
+    public function getDetails(string $id): ?array
+    {
+        $warehouse = $this->findById($id);
+        if ($warehouse === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $warehouse->id,
+            'name' => $warehouse->name,
+            'code' => $warehouse->code,
+            'address' => $warehouse->address,
+            'is_default' => (bool) $warehouse->is_default,
+            'is_active' => (bool) $warehouse->is_active,
+        ];
+    }
+
     public function getDefault(): ?Warehouse
     {
         return Warehouse::where('is_default', true)->first()

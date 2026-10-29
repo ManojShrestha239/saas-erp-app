@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)` (Completed)
-- **Last Completed Task:** `feat/invoice-posting-stock-sync`: Implemented atomic invoice posting with physical inventory synchronization and domain events in `Modules/Sales`. Forward-only tenant migration adding `warehouse_id` (nullable, indexed) to `sales_quotations` and `sales_invoices`. Decoupled module interactions using `StockService` and `WarehouseService` (preserving Arch tests model isolation). On invoice posting, physical stock is decremented atomically inside `DB::connection('tenant')->transaction(..., 3)` using `StockMovementType::SalesDelivery` with pessimistic row locking (`lockForUpdate()`). Enforced tenant `allow_negative_stock` setting: rolls back completely with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches `SalesInvoicePosted` and `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details ready for Phase 5 GL posting. Implemented atomic invoice voiding (`void()`): rejects invoices with payments (422 `INVOICE_HAS_PAYMENTS`), restores stock via `StockMovementType::AdjustmentIn`, sets status to `Void`, `amount_due_cents` to 0, and dispatches `SalesInvoiceVoided`. Oversell race conditions are fully serialized and prevented. Added `POST /api/v1/sales/invoices/{id}/void` endpoint, policies, request validation, resources, and frontend TypeScript contracts. Full CI gate clean: 261 Pest tests passing (1,654 assertions), Pint clean across 346 files, PHPStan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 fifth item.
-- **Current Focus:** User review and approval to commit `feat/invoice-posting-stock-sync` and merge into `develop`.
-- **Working branch:** `feat/invoice-posting-stock-sync`
+- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines · Active Task: Document PDFs via Browsershot (invoice, quotation, PO) (Completed)
+- **Last Completed Task:** `feat/document-pdf-browsershot`: Implemented pixel-perfect document PDF generation via Spatie Browsershot and headless Chromium in Docker (`nexuserp-app`). Created generic `PdfRendererService` in `Shared/Services` supporting `renderHtml`, `renderView`, `streamView`, and `downloadView` with Chromium flags (`--no-sandbox`, `--disable-setuid-sandbox`, `--disable-dev-shm-usage`, `--disable-gpu`) for containerized execution. Updated `ModuleServiceProvider` and `SharedServiceProvider` to automatically load module and shared Blade views (`Modules/{Module}/resources/views` and `Shared/resources/views`). Decoupled module interactions using `getDetails(string $id): ?array` on `ContactService`, `WarehouseService`, and `ProductService` to strictly preserve model boundary isolation in Arch tests. Created reusable, high-density print layout (`pdf/layout.blade.php`) matching Design.md tokens (A4 page size, 12mm margins, tabular numbers, status badges, company metadata, and signature blocks) and specialized document templates: Sales Invoice (`pdf/invoice.blade.php`), Sales Quotation (`pdf/quotation.blade.php`), and Purchase Order (`pdf/purchase_order.blade.php`). Added streaming/download endpoints (`/api/v1/sales/invoices/{id}/pdf`, `/api/v1/sales/quotations/{id}/pdf`, `/api/v1/purchasing/orders/{id}/pdf`) protected by multi-tenant resolution and RBAC policies (`invoices.view`, `quotations.view`, `purchases.view`). Added frontend "View / Print PDF" actions with `FileText` icons in Invoices and Quotations data tables. Full CI gate clean: 266 backend Pest tests passing (1,700 assertions), Pint clean across 348 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 sixth item.
+- **Current Focus:** User review and approval to commit `feat/document-pdf-browsershot` and merge into `develop`.
+- **Working branch:** `feat/document-pdf-browsershot`
 
 ## Architectural Decisions (Decision Log)
 
@@ -53,6 +53,7 @@
 | 31  | Sales engine architecture in `Modules\Sales`: Sales Quotations (`draft` → `sent` → `accepted` / `rejected` / `expired`) and Sales Invoices (`draft` → `posted` → `partially_paid` / `paid` / `void`). Atomic conversion replicates line items. Gap-free document numbers (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display and TanStack DataTable. | Complete sales-to-receivables pipeline, strict integer financial bounds, immutability of posted customer invoices, and real-time AR visibility for credit control and Phase 5 General Ledger posting. |
 | 32  | Payment & Multi-document Allocation Architecture in `Modules\Payments`: payments (`inbound` customer receipts, `outbound` supplier disbursements) and `payment_allocations` tables with `UsesTenantConnection` and `HasUlids`. Sequential gap-free numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), integer minor units (`*_cents` BIGINT), atomic allocations across Sales Invoices and Supplier Bills under `DB::connection('tenant')->transaction(..., 3)` with row-locking (`lockForUpdate()`), excess allocation rejection with 422, unallocated credit/debit advance tracking, decoupled domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), and TanStack DataTable frontend UIs (`/customer-receipts`, `/supplier-payments`). | Full cash reconciliation and multi-document settlement without float inaccuracies; maintains tenant isolation and module decoupling via public service hooks; ready for Phase 5 General Ledger posting. |
 | 33  | Atomic Invoice Posting & Stock Synchronization in `Modules\Sales`: invoice posting (`SalesInvoiceService::post`) executes inside `DB::connection('tenant')->transaction(..., 3)`. Decrements physical inventory atomically via `StockService::recordMovement` with `StockMovementType::SalesDelivery` under pessimistic row-locking (`lockForUpdate()`). Strictly enforces `allow_negative_stock` tenant setting: rolls back with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches stubbed `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details for Phase 5 GL posting. Implemented atomic voiding (`void()`) checking zero payments, restoring stock via `StockMovementType::AdjustmentIn`, and dispatching `SalesInvoiceVoided`. | Guarantees physical inventory reflects invoices atomically without race conditions or overselling; preserves module boundaries via domain services and events; guarantees immutability and complete auditability. |
+| 34  | Browsershot PDF generation engine in `Shared\Services\PdfRendererService` and isolated document views in `Modules/{Module}/resources/views/pdf`: Chromium headless execution in Alpine Docker with container flags (`--no-sandbox`, `--disable-setuid-sandbox`, `--disable-dev-shm-usage`, `--disable-gpu`); module view auto-discovery in `ModuleServiceProvider`; cross-module data passed as associative arrays via `getDetails` on `ContactService`, `WarehouseService`, and `ProductService` preserving strict ArchTest model isolation; unified A4 layout matching Design.md typography, tabular numbers, status badges, and signature blocks. | Pixel-perfect, high-performance vector PDFs with native CSS/print layout capabilities, zero cross-module model bleeding, and full multi-tenant isolation. |
 
 ## Conventions Locked In
 
@@ -73,56 +74,44 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit and merge `feat/invoice-posting-stock-sync` into `develop`.
-2. Propose next Phase 4 task: Document PDFs via Browsershot (invoice, quotation, PO) (`feat/document-pdf-browsershot`).
+1. Await user review and approval to commit and merge `feat/document-pdf-browsershot` into `develop`.
+2. Propose next Phase 4 task: AR/AP aging buckets on contact statements (`feat/contact-statements-aging-buckets`).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Sales/Database/Migrations/2026_10_29_000003_add_warehouse_id_to_sales_tables.php`
-- `backend/Modules/Sales/Events/SalesInvoicePostedToLedger.php`
-- `backend/Modules/Sales/Events/SalesInvoiceVoided.php`
+- `docker/php/Dockerfile`
+- `backend/composer.json`
+- `backend/composer.lock`
+- `backend/config/services.php`
+- `backend/.env.example`
+- `backend/Shared/Providers/ModuleServiceProvider.php`
+- `backend/Shared/Providers/SharedServiceProvider.php`
+- `backend/Shared/Services/PdfRendererService.php`
+- `backend/Shared/resources/views/pdf/layout.blade.php`
+- `backend/Modules/Contacts/Services/ContactService.php`
+- `backend/Modules/Inventory/Services/ProductService.php`
+- `backend/Modules/Inventory/Services/WarehouseService.php`
+- `backend/Modules/Sales/resources/views/pdf/invoice.blade.php`
+- `backend/Modules/Sales/resources/views/pdf/quotation.blade.php`
 - `backend/Modules/Sales/Services/SalesInvoiceService.php`
 - `backend/Modules/Sales/Services/SalesQuotationService.php`
 - `backend/Modules/Sales/Http/Controllers/SalesInvoiceController.php`
 - `backend/Modules/Sales/Http/Controllers/SalesQuotationController.php`
-- `backend/Modules/Sales/Policies/SalesInvoicePolicy.php`
 - `backend/Modules/Sales/Routes/api.php`
-- `backend/tests/Feature/Sales/SalesStockSyncTest.php`
-- `backend/tests/Feature/Sales/SalesEngineTest.php`
+- `backend/Modules/Purchasing/resources/views/pdf/purchase_order.blade.php`
+- `backend/Modules/Purchasing/Services/PurchaseOrderService.php`
+- `backend/Modules/Purchasing/Http/Controllers/PurchaseOrderController.php`
+- `backend/Modules/Purchasing/Routes/api.php`
+- `backend/tests/Feature/Documents/DocumentPdfGenerationTest.php`
 - `frontend/src/features/sales/api/salesApi.ts`
-- `frontend/src/features/sales/types/sales.types.ts`
-- `backend/Modules/Payments/Enums/PaymentType.php`
-- `backend/Modules/Payments/Enums/PaymentMethod.php`
-- `backend/Modules/Payments/Enums/PaymentStatus.php`
-- `backend/Modules/Payments/Enums/PayableType.php`
-- `backend/Modules/Payments/Models/Payment.php`
-- `backend/Modules/Payments/Models/PaymentAllocation.php`
-- `backend/Modules/Payments/DTOs/PaymentAllocationItemData.php`
-- `backend/Modules/Payments/DTOs/CreatePaymentData.php`
-- `backend/Modules/Payments/DTOs/AllocatePaymentData.php`
-- `backend/Modules/Payments/Events/PaymentReceived.php`
-- `backend/Modules/Payments/Events/PaymentDisbursed.php`
-- `backend/Modules/Payments/Events/PaymentAllocated.php`
-- `backend/Modules/Payments/Services/PaymentService.php`
-- `backend/Modules/Payments/Policies/PaymentPolicy.php`
-- `backend/Modules/Payments/Http/Requests/StorePaymentRequest.php`
-- `backend/Modules/Payments/Http/Requests/AllocatePaymentRequest.php`
-- `backend/Modules/Payments/Http/Resources/PaymentResource.php`
-- `backend/Modules/Payments/Http/Resources/PaymentAllocationResource.php`
-- `backend/Modules/Payments/Http/Controllers/PaymentController.php`
-- `backend/Modules/Payments/Routes/api.php`
-- `backend/Modules/Payments/Routes/web.php`
-- `backend/tests/Feature/Payments/PaymentEngineTest.php`
-- `backend/tests/Feature/Payments/PaymentWebRouteTest.php`
-- `frontend/src/features/payments/types/payments.types.ts`
-- `frontend/src/features/payments/api/paymentsApi.ts`
-- `frontend/src/features/payments/pages/CustomerReceiptsIndex.tsx`
-- `frontend/src/features/payments/pages/SupplierPaymentsIndex.tsx`
-- `frontend/src/features/payments/pages/__tests__/CustomerReceiptsIndex.test.tsx`
-- `frontend/src/features/payments/pages/__tests__/SupplierPaymentsIndex.test.tsx`
-- `frontend/src/layouts/AppLayout.tsx`
+- `frontend/src/features/sales/pages/InvoicesIndex.tsx`
+- `frontend/src/features/sales/pages/QuotationsIndex.tsx`
+- `docs/Phases.md`
 
 ## Session Log (newest first)
+
+- `2026-10-29`: `feat/document-pdf-browsershot`: Implemented document PDF generation engine using Spatie Browsershot and Alpine headless Chromium in Docker. Configured container packages (`chromium`, `nodejs`, `npm`, `puppeteer`) and backend service configuration (`CHROME_PATH`, `NODE_PATH`, `NODE_MODULES_PATH`). Created generic `PdfRendererService` in `Shared/Services` supporting inline streaming and attachment download with sandbox security flags for container stability. Auto-registered module and shared Blade views (`SharedServiceProvider`, `ModuleServiceProvider`). Added `getDetails(string $id): ?array` to `ContactService`, `WarehouseService`, and `ProductService` for clean cross-module data exchange without model coupling. Created unified A4 print layout and individual document templates for Sales Invoices, Sales Quotations, and Purchase Orders. Added streaming endpoints with RBAC authorization (`invoices.view`, `quotations.view`, `purchases.view`) and multi-tenant security. Integrated "View / Print PDF" actions in Invoices and Quotations data tables. Added Pest feature tests in `DocumentPdfGenerationTest.php`. Full CI green: 266 Pest tests passing (1,700 assertions), Pint clean across 348 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 sixth item.
+- `2026-10-29`: `feat/invoice-posting-stock-sync`: Implemented atomic invoice posting with physical inventory synchronization and domain events in `Modules/Sales`. Forward-only tenant migration adding `warehouse_id` (nullable, indexed) to `sales_quotations` and `sales_invoices`. Decoupled module interactions using `StockService` and `WarehouseService` (preserving Arch tests model isolation). On invoice posting, physical stock is decremented atomically inside `DB::connection('tenant')->transaction(..., 3)` using `StockMovementType::SalesDelivery` with pessimistic row locking (`lockForUpdate()`). Enforced tenant `allow_negative_stock` setting: rolls back completely with 400 `INSUFFICIENT_STOCK` when stock is inadequate. Dispatches `SalesInvoicePosted` and `SalesInvoicePostedToLedger` (`ShouldDispatchAfterCommit`) with COGS cents and line details ready for Phase 5 GL posting. Implemented atomic invoice voiding (`void()`): rejects invoices with payments (422 `INVOICE_HAS_PAYMENTS`), restores stock via `StockMovementType::AdjustmentIn`, sets status to `Void`, `amount_due_cents` to 0, and dispatches `SalesInvoiceVoided`. Oversell race conditions are fully serialized and prevented. Added `POST /api/v1/sales/invoices/{id}/void` endpoint, policies, request validation, resources, and frontend TypeScript contracts. Full CI gate clean: 261 Pest tests passing (1,654 assertions), Pint clean across 346 files, PHPStan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 fifth item.
 
 - `2026-10-29`: `feat/payments-allocations`: Implemented full payment and allocation engine in `Modules/Payments` and frontend Inertia UIs in `features/payments` (`/customer-receipts`, `/supplier-payments`). Forward-only tenant migration for `payments` and `payment_allocations` tables with ULID primary keys. Status enums (`PaymentType`, `PaymentMethod`, `PaymentStatus` with `isImmutable()`, `PayableType`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`PaymentReceived`, `PaymentDisbursed`, `PaymentAllocated` implementing `ShouldDispatchAfterCommit`), services (`PaymentService`, cross-module hooks in `SalesInvoiceService::recordPayment` and `SupplierBillService::recordPayment`), policies (`PaymentPolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Gap-free document numbering (`REC-YYYY-000000`, `PAY-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted payments, excess allocation prevention with 422, unallocated credit/debit balance tracking, live customer advance credit / supplier debit aggregation, and frontend Inertia UIs (`CustomerReceiptsIndex`, `SupplierPaymentsIndex`) with TanStack DataTable, live credit widgets, record payment modals, and allocation modals with auto-allocation and live validation. Full CI green: 253 Pest tests passing (1,586 assertions), Pint clean across 342 files, Larastan Level 8 0 errors, Vitest 58 frontend tests passing, ESLint and TypeScript clean, Vite production build clean. Ticked Phase 4 fourth item.
 - `2026-10-29`: `feat/sales-quotations-invoices`: Implemented full sales cycle engine in `Modules/Sales` and frontend Inertia UIs in `features/sales`. Forward-only tenant migration for `sales_quotations`, `sales_quotation_items`, `sales_invoices`, and `sales_invoice_items`. Status enums (`SalesQuotationStatus`, `SalesInvoiceStatus` with `isImmutable()`), domain models with `UsesTenantConnection` and `HasUlids`, readonly DTOs, domain events (`SalesQuotationSent`, `SalesInvoicePosted` implementing `ShouldDispatchAfterCommit`), services (`SalesQuotationService`, `SalesInvoiceService`), policies (`SalesQuotationPolicy`, `SalesInvoicePolicy` typed against `Authorizable`), Form Requests, API Resources, and Controllers. Atomic quotation conversion replicates line items into draft or posted invoice. Gap-free document numbering (`QUO-YYYY-000000`, `INV-YYYY-000000`), minor units (`*_cents` BIGINT), immutability on posted invoices, live customer AR balance aggregation (`getOutstandingReceivableCents`), and frontend Inertia UIs (`QuotationsIndex`, `InvoicesIndex`) with live AR balance display, TanStack DataTable, and conversion/post modals. Full CI green: 242 Pest tests passing (1,513 assertions), Pint clean across 317 files, Larastan Level 8 0 errors, Vitest 52 frontend tests passing, ESLint and TypeScript clean. Ticked Phase 4 third item.

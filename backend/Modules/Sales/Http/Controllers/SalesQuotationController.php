@@ -7,6 +7,7 @@ namespace Modules\Sales\Http\Controllers;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Modules\Sales\Http\Requests\ConvertSalesQuotationRequest;
 use Modules\Sales\Http\Requests\StoreSalesQuotationRequest;
@@ -15,6 +16,7 @@ use Modules\Sales\Http\Resources\SalesQuotationResource;
 use Modules\Sales\Models\SalesQuotation;
 use Modules\Sales\Services\SalesQuotationService;
 use Shared\Responses\ApiResponse;
+use Shared\Services\PdfRendererService;
 
 final class SalesQuotationController extends Controller
 {
@@ -135,5 +137,20 @@ final class SalesQuotationController extends Controller
             data: new SalesInvoiceResource($invoice),
             message: 'Sales quotation successfully converted to sales invoice.'
         );
+    }
+
+    public function pdf(string $id, Request $request, PdfRendererService $pdfService): Response
+    {
+        $quotation = $this->quotationService->find($id);
+        Gate::authorize('view', $quotation);
+
+        $data = $this->quotationService->getPdfData($id);
+        $filename = "{$quotation->quotation_number}.pdf";
+
+        if ($request->query('download') === '1') {
+            return $pdfService->downloadView('sales::pdf.quotation', $data, $filename);
+        }
+
+        return $pdfService->streamView('sales::pdf.quotation', $data, $filename);
     }
 }

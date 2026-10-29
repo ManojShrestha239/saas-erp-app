@@ -465,6 +465,11 @@ export default function QuotationsIndex() {
                 <span>View Details</span>
               </DropdownMenuItem>
 
+              <DropdownMenuItem onClick={() => window.open(salesApi.getQuotationPdfUrl(q.id), '_blank')}>
+                <FileText className="mr-2 h-3.5 w-3.5" />
+                <span>View / Print PDF</span>
+              </DropdownMenuItem>
+
               {canManageSales && q.status === 'draft' && (
                 <DropdownMenuItem onClick={() => handleSend(q)}>
                   <Send className="mr-2 h-3.5 w-3.5" />

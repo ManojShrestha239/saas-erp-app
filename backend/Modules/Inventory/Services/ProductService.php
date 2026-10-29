@@ -66,6 +66,27 @@ final class ProductService
     }
 
     /**
+     * @return array{id: string, name: string, sku: string, description: ?string, cost_price_cents: int, selling_price_cents: int, tax_category: string}|null
+     */
+    public function getDetails(string $id): ?array
+    {
+        $product = $this->findById($id);
+        if ($product === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $product->id,
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'description' => $product->description,
+            'cost_price_cents' => $product->cost_price_cents,
+            'selling_price_cents' => $product->selling_price_cents,
+            'tax_category' => $product->tax_category->value,
+        ];
+    }
+
+    /**
      * @param  array{search?: ?string, category_id?: ?string, unit_of_measure_id?: ?string, is_active?: ?bool, tax_category?: ?string}  $filters
      * @param  array{field: string, direction: 'asc'|'desc'}  $sort
      * @return LengthAwarePaginator<int, Product>

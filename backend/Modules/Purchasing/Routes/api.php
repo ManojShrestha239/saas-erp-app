@@ -23,6 +23,7 @@ Route::middleware([
     Route::get('purchasing/orders', [PurchaseOrderController::class, 'index'])->name('purchasing.orders.index');
     Route::post('purchasing/orders', [PurchaseOrderController::class, 'store'])->name('purchasing.orders.store');
     Route::get('purchasing/orders/{id}', [PurchaseOrderController::class, 'show'])->name('purchasing.orders.show');
+    Route::get('purchasing/orders/{id}/pdf', [PurchaseOrderController::class, 'pdf'])->name('purchasing.orders.pdf');
     Route::post('purchasing/orders/{id}/approve', [PurchaseOrderController::class, 'approve'])->name('purchasing.orders.approve');
     Route::post('purchasing/orders/{id}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchasing.orders.cancel');
 

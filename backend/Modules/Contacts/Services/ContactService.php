@@ -82,6 +82,41 @@ final class ContactService
         return Contact::find($id);
     }
 
+    /**
+     * @return array{
+     *     id: string,
+     *     code: string,
+     *     name: string,
+     *     type: string,
+     *     email: ?string,
+     *     phone: ?string,
+     *     tax_id: ?string,
+     *     billing_address: ?array<string, mixed>,
+     *     shipping_address: ?array<string, mixed>,
+     *     payment_terms_days: int
+     * }|null
+     */
+    public function getDetails(string $id): ?array
+    {
+        $contact = $this->findById($id);
+        if ($contact === null) {
+            return null;
+        }
+
+        return [
+            'id' => (string) $contact->id,
+            'code' => $contact->code,
+            'name' => $contact->name,
+            'type' => $contact->type->value,
+            'email' => $contact->email,
+            'phone' => $contact->phone,
+            'tax_id' => $contact->tax_id,
+            'billing_address' => $contact->billing_address,
+            'shipping_address' => $contact->shipping_address,
+            'payment_terms_days' => $contact->payment_terms_days,
+        ];
+    }
+
     public function findByCode(string $code): ?Contact
     {
         return Contact::where('code', $code)->first();
