@@ -23,6 +23,7 @@ final class SalesInvoiceResource extends JsonResource
             'invoice_number' => $this->invoice_number,
             'sales_quotation_id' => $this->sales_quotation_id,
             'customer_id' => $this->customer_id,
+            'warehouse_id' => $this->warehouse_id,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'issue_date' => $this->issue_date->toDateString(),

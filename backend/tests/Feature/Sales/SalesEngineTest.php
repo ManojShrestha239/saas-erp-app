@@ -13,7 +13,11 @@ use Modules\Auth\Enums\TenantRole;
 use Modules\Auth\Models\TenantUser;
 use Modules\Contacts\Enums\ContactType;
 use Modules\Contacts\Models\Contact;
+use Modules\Inventory\DTOs\RecordStockMovementData;
+use Modules\Inventory\Enums\StockMovementType;
 use Modules\Inventory\Models\Product;
+use Modules\Inventory\Models\Warehouse;
+use Modules\Inventory\Services\StockService;
 use Modules\Sales\Events\SalesInvoicePosted;
 use Modules\Sales\Events\SalesQuotationSent;
 use Modules\Tenancy\Jobs\ProvisionTenantDatabase;
@@ -189,6 +193,37 @@ beforeEach(function (): void {
         'is_active' => true,
     ]);
 
+    $this->alphaWarehouse = Warehouse::create([
+        'name' => 'Alpha Central Warehouse',
+        'code' => 'WH-ALPHA',
+        'is_default' => true,
+        'is_active' => true,
+    ]);
+
+    $stockService = app(StockService::class);
+    $stockService->recordMovement(new RecordStockMovementData(
+        warehouseId: (string) $this->alphaWarehouse->id,
+        productId: (string) $this->productA->id,
+        type: StockMovementType::OpeningBalance,
+        quantity: 1000,
+        unitCostCents: 6000000,
+        sourceType: 'seed',
+        sourceId: 'seed',
+        userId: (string) $this->alphaOwner->id,
+        notes: 'Initial seed stock',
+    ));
+    $stockService->recordMovement(new RecordStockMovementData(
+        warehouseId: (string) $this->alphaWarehouse->id,
+        productId: (string) $this->productB->id,
+        type: StockMovementType::OpeningBalance,
+        quantity: 1000,
+        unitCostCents: 12000000,
+        sourceType: 'seed',
+        sourceId: 'seed',
+        userId: (string) $this->alphaOwner->id,
+        notes: 'Initial seed stock',
+    ));
+
     // Seed Beta records
     $tenantManager->switchTo(new TenantContext(
         id: $this->betaTenant->id,
@@ -216,6 +251,13 @@ beforeEach(function (): void {
         'sku' => 'BETA-WIDGET',
         'cost_price_cents' => 1000,
         'selling_price_cents' => 2000,
+        'is_active' => true,
+    ]);
+
+    Warehouse::create([
+        'name' => 'Beta Central Warehouse',
+        'code' => 'WH-BETA',
+        'is_default' => true,
         'is_active' => true,
     ]);
 

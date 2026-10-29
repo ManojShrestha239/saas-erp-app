@@ -22,6 +22,7 @@ final class SalesQuotationResource extends JsonResource
             'id' => $this->id,
             'quotation_number' => $this->quotation_number,
             'customer_id' => $this->customer_id,
+            'warehouse_id' => $this->warehouse_id,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'issue_date' => $this->issue_date->toDateString(),

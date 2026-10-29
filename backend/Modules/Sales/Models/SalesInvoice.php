@@ -18,6 +18,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property string $invoice_number
  * @property string|null $sales_quotation_id
  * @property string $customer_id
+ * @property string|null $warehouse_id
  * @property SalesInvoiceStatus $status
  * @property Carbon $issue_date
  * @property Carbon $due_date
@@ -52,6 +53,7 @@ final class SalesInvoice extends Model
         'invoice_number',
         'sales_quotation_id',
         'customer_id',
+        'warehouse_id',
         'status',
         'issue_date',
         'due_date',

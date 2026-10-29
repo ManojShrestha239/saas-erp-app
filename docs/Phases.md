@@ -47,7 +47,7 @@
 - [x] Purchase Orders → goods receipt → Supplier Bills with AP balance tracking.
 - [x] Sales Quotations → conversion → Sales Invoices with AR balance tracking.
 - [x] Payments and allocations (receipts and supplier payments), unallocated credit handling.
-- [ ] Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)`.
+- [x] Atomic invoice posting: stock decrement + (stubbed) journal event inside one `DB::transaction(..., 3)`.
 - [ ] Document PDFs via Browsershot (invoice, quotation, PO).
 - [ ] AR/AP aging buckets on contact statements.
 - **Exit criteria:** oversell race test passes; posted documents immutable; invoice flow E2E green.

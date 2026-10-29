@@ -35,6 +35,7 @@ final class StoreSalesInvoiceRequest extends FormRequest
                 ),
             ],
             'sales_quotation_id' => ['nullable', 'string', Rule::exists('tenant.sales_quotations', 'id')],
+            'warehouse_id' => ['nullable', 'string', Rule::exists('tenant.warehouses', 'id')],
             'issue_date' => ['required', 'date'],
             'due_date' => ['required', 'date', 'after_or_equal:issue_date'],
             'currency' => ['nullable', 'string', 'size:3'],
@@ -76,6 +77,7 @@ final class StoreSalesInvoiceRequest extends FormRequest
             dueDate: (string) $validated['due_date'],
             currency: (string) ($validated['currency'] ?? 'USD'),
             quotationId: isset($validated['sales_quotation_id']) ? (string) $validated['sales_quotation_id'] : null,
+            warehouseId: isset($validated['warehouse_id']) ? (string) $validated['warehouse_id'] : null,
             notes: isset($validated['notes']) ? (string) $validated['notes'] : null,
             items: $items,
         );

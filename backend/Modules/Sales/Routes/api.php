@@ -34,5 +34,6 @@ Route::middleware([
     Route::put('sales/invoices/{id}', [SalesInvoiceController::class, 'update'])->name('sales.invoices.update');
     Route::delete('sales/invoices/{id}', [SalesInvoiceController::class, 'destroy'])->name('sales.invoices.destroy');
     Route::post('sales/invoices/{id}/post', [SalesInvoiceController::class, 'post'])->name('sales.invoices.post');
+    Route::post('sales/invoices/{id}/void', [SalesInvoiceController::class, 'void'])->name('sales.invoices.void');
     Route::get('sales/customers/{customerId}/receivable-balance', [SalesInvoiceController::class, 'customerReceivableBalance'])->name('sales.customers.receivable-balance');
 });

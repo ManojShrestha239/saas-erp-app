@@ -83,6 +83,7 @@ final class SalesQuotationService
             $quotation = SalesQuotation::create([
                 'quotation_number' => $quotationNumber,
                 'customer_id' => $data->customerId,
+                'warehouse_id' => $data->warehouseId,
                 'status' => SalesQuotationStatus::Draft,
                 'issue_date' => $data->issueDate,
                 'expiry_date' => $data->expiryDate,
@@ -228,9 +229,10 @@ final class SalesQuotationService
         string $id,
         string $userId,
         ?string $dueDate = null,
-        bool $postImmediately = false
+        bool $postImmediately = false,
+        ?string $warehouseId = null,
     ): SalesInvoice {
-        return $this->db->connection('tenant')->transaction(function () use ($id, $userId, $dueDate, $postImmediately): SalesInvoice {
+        return $this->db->connection('tenant')->transaction(function () use ($id, $userId, $dueDate, $postImmediately, $warehouseId): SalesInvoice {
             /** @var SalesQuotation|null $quotation */
             $quotation = SalesQuotation::with('items')->where('id', $id)->lockForUpdate()->first();
 
@@ -253,6 +255,7 @@ final class SalesQuotationService
             }
 
             $calculatedDueDate = $dueDate ?? now()->addDays(30)->toDateString();
+            $finalWarehouseId = $warehouseId ?? $quotation->warehouse_id;
 
             /** @var list<SalesInvoiceItemData> $invoiceItems */
             $invoiceItems = [];
@@ -274,6 +277,7 @@ final class SalesQuotationService
                 dueDate: $calculatedDueDate,
                 currency: $quotation->currency,
                 quotationId: $quotation->id,
+                warehouseId: $finalWarehouseId,
                 notes: $quotation->notes,
                 items: $invoiceItems,
             );

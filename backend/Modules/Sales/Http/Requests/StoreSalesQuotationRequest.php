@@ -34,6 +34,7 @@ final class StoreSalesQuotationRequest extends FormRequest
                     fn ($query) => $query->whereIn('type', ['customer', 'both'])
                 ),
             ],
+            'warehouse_id' => ['nullable', 'string', Rule::exists('tenant.warehouses', 'id')],
             'issue_date' => ['required', 'date'],
             'expiry_date' => ['nullable', 'date', 'after_or_equal:issue_date'],
             'currency' => ['nullable', 'string', 'size:3'],
@@ -74,6 +75,7 @@ final class StoreSalesQuotationRequest extends FormRequest
             issueDate: (string) $validated['issue_date'],
             expiryDate: isset($validated['expiry_date']) ? (string) $validated['expiry_date'] : null,
             currency: (string) ($validated['currency'] ?? 'USD'),
+            warehouseId: isset($validated['warehouse_id']) ? (string) $validated['warehouse_id'] : null,
             notes: isset($validated['notes']) ? (string) $validated['notes'] : null,
             items: $items,
         );
