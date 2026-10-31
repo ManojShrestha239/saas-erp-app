@@ -45,7 +45,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, id: 'dashboard' },
-  { name: 'Inventory', href: '/inventory', icon: Package, id: 'inventory', permission: 'inventory.view' },
+  { name: 'Inventory', href: '/inventory', icon: Package, id: 'inventory', permission: 'products.view' },
   { name: 'Sales', href: '/quotations', icon: ShoppingCart, id: 'sales', permission: 'sales.view' },
   { name: 'Invoices', href: '/invoices', icon: ReceiptText, id: 'invoices', permission: 'sales.view' },
   { name: 'Receipts', href: '/customer-receipts', icon: CreditCard, id: 'customer-receipts', permission: 'payments.customer.receipts' },

@@ -1,3 +1,172 @@
+export type TaxCategory = 'standard' | 'zero_rated' | 'exempt';
+
+export interface CategoryItem {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CategoryFormData {
+  name: string;
+  description?: string | null;
+  is_active?: boolean;
+}
+
+export interface UnitOfMeasureItem {
+  id: string;
+  name: string;
+  symbol: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UnitOfMeasureFormData {
+  name: string;
+  symbol: string;
+  is_active?: boolean;
+}
+
+export interface WarehouseItem {
+  id: string;
+  name: string;
+  code: string;
+  address: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WarehouseFormData {
+  name: string;
+  code: string;
+  address?: string | null;
+  is_default?: boolean;
+  is_active?: boolean;
+}
+
+export interface ProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  cost_price_cents: number;
+  selling_price_cents: number;
+  tax_category: TaxCategory | string;
+  tax_category_label?: string;
+  is_active: boolean;
+  category_id?: string | null;
+  unit_of_measure_id?: string | null;
+  barcode?: string | null;
+  description?: string | null;
+  low_stock_threshold?: number;
+  category?: CategoryItem | null;
+  unit_of_measure?: UnitOfMeasureItem | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProductFormData {
+  name: string;
+  sku: string;
+  barcode?: string | null;
+  category_id?: string | null;
+  unit_of_measure_id?: string | null;
+  cost_price_cents: number;
+  selling_price_cents: number;
+  tax_category: TaxCategory;
+  low_stock_threshold?: number;
+  description?: string | null;
+  is_active?: boolean;
+}
+
+export interface ProductFilters {
+  search?: string;
+  category_id?: string;
+  unit_of_measure_id?: string;
+  tax_category?: string;
+  is_active?: boolean;
+  page?: number;
+  per_page?: number;
+  sort_by?: string;
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface StockLevelItem {
+  id: string;
+  warehouse_id: string;
+  product_id: string;
+  quantity_on_hand: number;
+  quantity_reserved: number;
+  quantity_available: number;
+  warehouse?: WarehouseItem;
+  product?: ProductItem;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StockLevelFilters {
+  warehouse_id?: string;
+  product_id?: string;
+  search?: string;
+  page?: number;
+  per_page?: number;
+  sort_by?: string;
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface StockAdjustmentLineItem {
+  id: string;
+  stock_adjustment_id: string;
+  product_id: string;
+  quantity_before: number;
+  quantity_delta: number;
+  quantity_after: number;
+  unit_cost_cents: number | null;
+  line_cost_impact_cents: number | null;
+  product?: ProductItem;
+  created_at?: string;
+}
+
+export interface StockAdjustmentItem {
+  id: string;
+  adjustment_number: string;
+  warehouse_id: string;
+  reason: string;
+  user_id?: string | null;
+  status: string;
+  total_cost_impact_cents: number;
+  warehouse?: WarehouseItem;
+  items?: StockAdjustmentLineItem[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface StockAdjustmentFormData {
+  warehouse_id: string;
+  reason: string;
+  items: Array<{
+    product_id: string;
+    quantity_delta: number;
+    unit_cost_cents?: number | null;
+  }>;
+}
+
+export interface StockAdjustmentFilters {
+  warehouse_id?: string;
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  per_page?: number;
+  sort_by?: string;
+  sort_direction?: 'asc' | 'desc';
+}
+
 export interface LowStockItem {
   id: string;
   product_id: string;
