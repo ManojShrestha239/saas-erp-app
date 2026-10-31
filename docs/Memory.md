@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 4: Purchasing, Sales & Invoicing Engines (ALL 7 ITEMS COMPLETED) · Active Task: Purchasing UI (Completed)
-- **Last Completed Task:** `feat/purchasing-ui`: Built complete Purchasing & Procurement frontend web interface (`/purchasing`) using Inertia + React 19 + TypeScript. Registered authenticated web route in `Modules/Purchasing/Routes/web.php` guarded by `EnsureTenantSession` and `identify.tenant`. Built `PurchasingIndex.tsx` with 3 core tabs: (1) Purchase Orders with TanStack DataTable (PO #, supplier, warehouse, order & delivery dates, total amount, status badges, view details, PDF print/download, approve, cancel, and receive goods actions); (2) Supplier Bills with status filtering, invoice references, payment status, amount paid, and balance due; (3) Accounts Payable Overview displaying total outstanding AP liabilities and per-supplier balance cards. Created `PurchaseOrderFormModal` with dynamic product rows and 13% VAT calculations, `GoodsReceiptModal` enforcing remaining order balance limits with atomic stock increments, `SupplierBillFormModal` with optional PO linkage, and inspection modals `PurchaseOrderDetailModal` and `SupplierBillDetailModal`. Added backend feature test `PurchasingWebRouteTest.php` and Vitest component tests `PurchasingIndex.test.tsx`. 100% CI gate clean across Pint, Larastan Level 8 (0 errors), Pest (22 tests passing), Vitest (68 tests passing), ESLint, TypeScript, and Vite production build.
-- **Current Focus:** User review and approval to commit all UI changes and proceed to Phase 5: Financial Ledger, VAT & Adjustments.
-- **Working branch:** `feat/inventory-catalog-ui`
+- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (1 of 7 items completed) · Active Task: Chart of Accounts & Default CoA Seeder (Completed)
+- **Last Completed Task:** `feat/chart-of-accounts`: Scaffolded `Modules/Accounting`, implemented hierarchical Chart of Accounts (`accounts` table in tenant DB with ULID PK, code, type, parent_id, is_system, system_name), `Account` model, `AccountType` and `SystemAccount` enums, `CreateAccountData`/`UpdateAccountData` DTOs, `AccountService` (hierarchy validation, cyclic hierarchy prevention, system account protections), `ChartOfAccountsSeeder` with 12 core system accounts and top-down hierarchical tree, `AccountController`, Form Requests, Resource, and `AccountPolicy`. Wired `ChartOfAccountsSeeder` into `ProvisionTenantDatabase` and `TenantAdminSeeder`. 100% CI clean across Pint, Larastan Level 8 (0 errors), Pest (298 backend tests passing with 2,551 assertions), Vitest (68 frontend tests passing), ESLint, and TypeScript.
+- **Current Focus:** Next task in Phase 5: General Ledger posting engine (`feat/general-ledger-posting`).
+- **Working branch:** `feat/chart-of-accounts`
 
 ## Architectural Decisions (Decision Log)
 
@@ -29,7 +29,7 @@
 | 7   | Central exception rendering via `ApiExceptionRenderer` in `bootstrap/app.php` and strict envelope | Uniform API contract without ad hoc errors |
 | 8   | Tenants use ULID IDs and no soft deletes                                                          | Time-ordered B-tree indexing, URL-safe identifiers (security comes from authorization); lifecycle managed via `status` without unique constraint collisions |
 | 9   | `IdentifyTenant` registered as alias only; resets context in `terminate()`                        | Explicit per-route tenancy assignment without leaking state across persistent cycles |
-| 10  | Chart of Accounts seeder deferred to Phase 5                                                      | CoA structure requires the full Accounting module (accounts, hierarchies, system flags); premature seeding would couple provisioning to unbuilt code |
+| 10  | Chart of Accounts seeder deferred to Phase 5 (Resolved in `feat/chart-of-accounts`)                | CoA structure requires the full Accounting module; built and integrated into `ProvisionTenantDatabase` and `TenantAdminSeeder` in Phase 5 Item 1 |
 | 11  | Separate `pgsql_testing` database configured via `phpunit.xml` (`DB_DATABASE` / `DB_CENTRAL_DATABASE`) | Keeps test execution completely isolated from development database |
 | 12  | Larastan level 8 + Pest Arch tests enforcing strict typing, no DB in controllers, module boundary isolation, no float in money | Static and architectural guarantees enforced in CI |
 | 13  | Provisioning database user requires only `CREATEDB` privilege in production (tied to Phase 7 deployment checklist) | Prevents superuser exposure and enforces least privilege; database creation succeeds without granting full administrative privileges; verification of dedicated non-superuser role added to Phase 7 release checklist |
@@ -57,6 +57,7 @@
 | 35  | Contact Statements & AR/AP Aging Engine in `Modules\Contacts\Services\ContactStatementService`: Chronological aging buckets (`Current`, `1–30`, `31–60`, `61–90`, `90+`) evaluated against `due_date` using minor units (`*_cents` BIGINT, zero floats); decoupled public domain hooks `getAgingBuckets` and `getStatementTransactions` on `SalesInvoiceService`, `SupplierBillService`, and `PaymentService` preserving model boundary isolation in Arch tests; complete chronological account ledger with opening balance forward, transaction merge/sort, running balances, and closing balance due; printable statement PDF via `PdfRendererService`. | Financial auditability, accurate aging analysis for credit control, zero cross-module model bleeding, and complete customer/supplier transparency. |
 | 36  | Inventory & Product Catalog Frontend UI (`feat/inventory-catalog-ui`): Multi-tab management interface on `/inventory` (with `/products` redirect) comprising Products Catalog, Multi-Warehouse Stock Balances, Stock Adjustments, and Warehouse Management. Integrated TanStack DataTable, CSV catalog import via `CsvImportDialog`, `ProductFormModal` with decimal-to-minor-unit conversions, `StockAdjustmentModal` with audited mandatory reasons and real-time financial impact preview, and `WarehouseFormModal`. Inertia web route secured by `identify.tenant`, `EnsureTenantSession`, and `auth:web` with `TenantPermission::ProductsView`. | High-density ERP catalog management, seamless inventory adjustments with audited reasons and cost tracking, multi-warehouse visibility, and zero float math. |
 | 37  | Purchasing & Procurement Frontend UI (`feat/purchasing-ui`): Multi-tab management interface on `/purchasing` covering Purchase Orders, Goods Receipts with direct inventory increments, and Supplier Bills. Integrated TanStack DataTable, `PurchaseOrderFormModal` with dynamic line pricing and 13% VAT, `GoodsReceiptModal` enforcing remaining order boundaries with atomic inventory increments via `StockService`, `SupplierBillFormModal` with optional PO linkage, and inspection modals with PDF printing and AP ledger posting. | End-to-end procurement workflow, physical inventory synchronization, real-time AP liability tracking, and zero floating-point math. |
+| 38  | Hierarchical Chart of Accounts & System Account Protection (`feat/chart-of-accounts`): `accounts` table in tenant DB with ULID PK, code (unique per tenant), hierarchical `parent_id` (foreign key with `onDelete('restrict')`), `type` enum (`asset`, `liability`, `equity`, `income`, `expense`), and `is_system` / `system_name` enum for critical control accounts. Enforces same type between parent and child, prevents cyclic ancestry and self-parenting, prevents deleting accounts with children or deleting/modifying system accounts. Standard CoA seeded automatically during tenant provisioning. | Foundation for Phase 5 General Ledger double-entry engine; provides bulletproof account tree structure, prevents accidental deletion of system control accounts (AR, AP, VAT, COGS, Inventory Asset), and ensures zero cross-tenant leakage. |
 
 ## Conventions Locked In
 
@@ -77,35 +78,37 @@
 
 ## Next Steps
 
-1. Await user review and approval to commit all frontend UI implementations (Inventory & Product Catalog UI + Purchasing & Procurement UI) and merge into `develop`.
-2. Transition to Phase 5: Financial Ledger, VAT & Adjustments. First task: Chart of Accounts (hierarchy, system accounts protected) and default CoA seeder (`feat/chart-of-accounts`).
+1. Implement General Ledger double-entry posting engine in `Modules/Accounting` (balanced-or-reject, source-linked, immutable, reversal-only corrections) (`feat/general-ledger-posting`).
+2. Wire Phase 3/4 business events (Sales Invoices, Supplier Bills, Customer Receipts, Supplier Payments, Stock Adjustments) to real journal entries (AR, AP, Revenue, Input/Output VAT, Inventory Asset, COGS).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Purchasing/Routes/web.php`
-- `backend/tests/Feature/Purchasing/PurchasingWebRouteTest.php`
-- `frontend/src/features/purchasing/types/purchasing.types.ts`
-- `frontend/src/features/purchasing/api/purchasingApi.ts`
-- `frontend/src/features/purchasing/components/PurchaseOrderFormModal.tsx`
-- `frontend/src/features/purchasing/components/GoodsReceiptModal.tsx`
-- `frontend/src/features/purchasing/components/SupplierBillFormModal.tsx`
-- `frontend/src/features/purchasing/components/PurchaseOrderDetailModal.tsx`
-- `frontend/src/features/purchasing/components/SupplierBillDetailModal.tsx`
-- `frontend/src/features/purchasing/pages/PurchasingIndex.tsx`
-- `frontend/src/features/purchasing/pages/__tests__/PurchasingIndex.test.tsx`
-- `backend/Modules/Inventory/Routes/web.php`
-- `backend/tests/Feature/Inventory/InventoryWebRouteTest.php`
-- `frontend/src/features/inventory/types/inventory.types.ts`
-- `frontend/src/features/inventory/api/inventoryApi.ts`
-- `frontend/src/features/inventory/components/ProductFormModal.tsx`
-- `frontend/src/features/inventory/components/StockAdjustmentModal.tsx`
-- `frontend/src/features/inventory/components/WarehouseFormModal.tsx`
-- `frontend/src/features/inventory/pages/InventoryIndex.tsx`
-- `frontend/src/features/inventory/pages/__tests__/InventoryIndex.test.tsx`
-- `frontend/src/layouts/AppLayout.tsx`
+- `backend/Modules/Accounting/Database/Migrations/2026_10_31_000001_create_accounting_accounts_table.php`
+- `backend/Modules/Accounting/Database/Seeders/ChartOfAccountsSeeder.php`
+- `backend/Modules/Accounting/DTOs/CreateAccountData.php`
+- `backend/Modules/Accounting/DTOs/UpdateAccountData.php`
+- `backend/Modules/Accounting/Enums/AccountType.php`
+- `backend/Modules/Accounting/Enums/SystemAccount.php`
+- `backend/Modules/Accounting/Http/Controllers/AccountController.php`
+- `backend/Modules/Accounting/Http/Requests/StoreAccountRequest.php`
+- `backend/Modules/Accounting/Http/Requests/UpdateAccountRequest.php`
+- `backend/Modules/Accounting/Http/Resources/AccountResource.php`
+- `backend/Modules/Accounting/Models/Account.php`
+- `backend/Modules/Accounting/Policies/AccountPolicy.php`
+- `backend/Modules/Accounting/Providers/AccountingServiceProvider.php`
+- `backend/Modules/Accounting/Routes/api.php`
+- `backend/Modules/Accounting/Services/AccountService.php`
+- `backend/Modules/Tenancy/Jobs/ProvisionTenantDatabase.php`
+- `backend/database/seeders/TenantAdminSeeder.php`
+- `backend/tests/Feature/Accounting/ChartOfAccountsTest.php`
+- `backend/tests/Feature/Accounting/ChartOfAccountsSeederTest.php`
+- `backend/tests/Unit/Accounting/AccountTypeTest.php`
+- `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-10-31`: `feat/chart-of-accounts`: Scaffolded `Modules/Accounting`, implemented hierarchical Chart of Accounts (`accounts` table in tenant DB with ULID PK, code, type, parent_id, is_system, system_name), `Account` model, `AccountType` and `SystemAccount` enums, `CreateAccountData`/`UpdateAccountData` DTOs, `AccountService` (hierarchy validation, cyclic hierarchy prevention, system account protections), `ChartOfAccountsSeeder` with 12 core system accounts and top-down hierarchical tree, `AccountController`, Form Requests, Resource, and `AccountPolicy`. Wired `ChartOfAccountsSeeder` into `ProvisionTenantDatabase` and `TenantAdminSeeder`. 100% CI clean across Pint, Larastan Level 8 (0 errors), Pest (298 backend tests passing with 2,551 assertions), Vitest (68 frontend tests passing), ESLint, and TypeScript. Ticked Phase 5 first item.
 
 - `2026-10-29`: `feat/purchasing-ui`: Built complete Purchasing & Procurement frontend web interface (`/purchasing`) using Inertia + React 19 + TypeScript. Registered authenticated web route in `Modules/Purchasing/Routes/web.php` guarded by `EnsureTenantSession` and `identify.tenant`. Built `PurchasingIndex.tsx` with 3 core tabs: (1) Purchase Orders with TanStack DataTable (PO #, supplier, warehouse, order & delivery dates, total amount, status badges, view details, PDF print/download, approve, cancel, and receive goods actions); (2) Supplier Bills with status filtering, invoice references, payment status, amount paid, and balance due; (3) Accounts Payable Overview displaying total outstanding AP liabilities and per-supplier balance cards. Created `PurchaseOrderFormModal` with dynamic product rows and 13% VAT calculations, `GoodsReceiptModal` enforcing remaining order balance limits with atomic stock increments, `SupplierBillFormModal` with optional PO linkage, and inspection modals `PurchaseOrderDetailModal` and `SupplierBillDetailModal`. Added backend feature test `PurchasingWebRouteTest.php` and Vitest component tests `PurchasingIndex.test.tsx`. 100% CI gate clean across Pint, Larastan Level 8 (0 errors), Pest (22 tests passing), Vitest (68 tests passing), ESLint, TypeScript, and Vite production build.
 - `2026-10-29`: `feat/inventory-catalog-ui`: Built complete Inventory & Product Catalog frontend web interface (`/inventory`, with `/products` redirect) using Inertia + React 19 + TypeScript. Includes authenticated web routes registered in `Modules/Inventory/Routes/web.php` guarded by `EnsureTenantSession` and `identify.tenant`, sidebar navigation updated to `products.view` in `AppLayout.tsx`. Built `InventoryIndex.tsx` with 4 dedicated management tabs: (1) Products Catalog with TanStack DataTable (SKU, name, category, UoM, cost/selling price in integer cents, margin %, tax category, low stock threshold, status, row actions); (2) Stock Balances displaying on-hand, reserved, available levels per warehouse and product with visual stock status badges (Out of Stock, Low Stock, In Stock) and direct "Adjust" action; (3) Stock Adjustments table with audited mandatory reasons, financial cost impact preview, and detailed inspection modal; (4) Warehouses management table with default and status badges. Integrated `ProductFormModal`, `StockAdjustmentModal` (with preset reasons and financial cost impact calculations), `WarehouseFormModal`, and `CsvImportDialog`. Created full backend feature test `InventoryWebRouteTest.php` and Vitest unit/component tests `InventoryIndex.test.tsx`. 100% CI gate clean (Pint, PHPStan Level 8, Pest 47 tests passing, Vitest 63 tests passing, ESLint, TypeScript, Vite build).

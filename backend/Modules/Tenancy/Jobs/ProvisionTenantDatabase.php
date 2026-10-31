@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Modules\Accounting\Database\Seeders\ChartOfAccountsSeeder;
 use Modules\Tenancy\Models\Tenant;
 use Shared\Tenancy\TenantContext;
 use Shared\Tenancy\TenantManager;
@@ -77,10 +78,13 @@ final class ProvisionTenantDatabase implements ShouldQueue
             // Step 5: Seed default settings (idempotent)
             $this->seedDefaultSettings($databaseManager);
 
-            // Step 6: Create owner user (idempotent — skip if already exists)
+            // Step 6: Seed default Chart of Accounts (idempotent)
+            $this->seedDefaultChartOfAccounts();
+
+            // Step 7: Create owner user (idempotent — skip if already exists)
             $this->createOwnerUser($databaseManager);
 
-            // Step 7: Mark tenant as active
+            // Step 8: Mark tenant as active
             $tenant->update([
                 'status' => 'active',
                 'provisioning_error' => null,
@@ -186,6 +190,11 @@ final class ProvisionTenantDatabase implements ShouldQueue
     private function seedDefaultRoles(DatabaseManager $databaseManager): void
     {
         (new TenantRolePermissionSeeder)->run();
+    }
+
+    private function seedDefaultChartOfAccounts(): void
+    {
+        (new ChartOfAccountsSeeder)->run();
     }
 
     private function seedDefaultSettings(DatabaseManager $databaseManager): void

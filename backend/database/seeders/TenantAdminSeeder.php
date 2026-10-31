@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Modules\Accounting\Database\Seeders\ChartOfAccountsSeeder;
 use Modules\Auth\Enums\TenantRole;
 use Modules\Auth\Models\TenantUser;
 use Modules\Tenancy\Models\Tenant;
@@ -71,6 +72,9 @@ final class TenantAdminSeeder extends Seeder
 
             // Step 5: Seed default settings
             $this->seedDefaultSettings();
+
+            // Step 5b: Seed default Chart of Accounts
+            (new ChartOfAccountsSeeder)->run();
 
             // Step 6: Seed Tenant Owner
             $this->upsertTenantUser(
