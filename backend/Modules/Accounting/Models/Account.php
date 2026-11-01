@@ -28,6 +28,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property Carbon|null $updated_at
  * @property-read Account|null $parent
  * @property-read Collection<int, Account> $children
+ * @property-read Collection<int, JournalEntryLine> $journalEntryLines
  */
 final class Account extends Model
 {
@@ -75,5 +76,13 @@ final class Account extends Model
     public function children(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id')->orderBy('code');
+    }
+
+    /**
+     * @return HasMany<JournalEntryLine, $this>
+     */
+    public function journalEntryLines(): HasMany
+    {
+        return $this->hasMany(JournalEntryLine::class, 'account_id');
     }
 }
