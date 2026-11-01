@@ -13,6 +13,8 @@ enum StockMovementType: string
     case AdjustmentOut = 'adjustment_out';
     case TransferIn = 'transfer_in';
     case TransferOut = 'transfer_out';
+    case SalesReturn = 'sales_return';
+    case PurchaseReturn = 'purchase_return';
 
     public function label(): string
     {
@@ -24,14 +26,16 @@ enum StockMovementType: string
             self::AdjustmentOut => 'Stock Adjustment (Out)',
             self::TransferIn => 'Warehouse Transfer (In)',
             self::TransferOut => 'Warehouse Transfer (Out)',
+            self::SalesReturn => 'Sales Return',
+            self::PurchaseReturn => 'Purchase Return',
         };
     }
 
     public function isAddition(): bool
     {
         return match ($this) {
-            self::OpeningBalance, self::PurchaseReceipt, self::AdjustmentIn, self::TransferIn => true,
-            self::SalesDelivery, self::AdjustmentOut, self::TransferOut => false,
+            self::OpeningBalance, self::PurchaseReceipt, self::AdjustmentIn, self::TransferIn, self::SalesReturn => true,
+            self::SalesDelivery, self::AdjustmentOut, self::TransferOut, self::PurchaseReturn => false,
         };
     }
 

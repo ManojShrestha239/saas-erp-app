@@ -4,7 +4,7 @@ import InvoicesIndex from '../InvoicesIndex';
 import { salesApi } from '../../api/salesApi';
 import { contactsApi } from '@/features/contacts/api/contactsApi';
 import { inventoryApi } from '@/features/inventory/api/inventoryApi';
-import type { SalesInvoice } from '../../types/sales.types';
+import type { SalesInvoice, CreditNote } from '../../types/sales.types';
 import type { ApiSuccessResponse } from '@/shared/types/apiResponse';
 import type { ContactItem } from '@/features/contacts/types/contacts.types';
 
@@ -17,6 +17,11 @@ vi.mock('../../api/salesApi', () => ({
     deleteInvoice: vi.fn(),
     postInvoice: vi.fn(),
     getCustomerReceivableBalance: vi.fn(),
+    getCreditNotes: vi.fn(),
+    getCreditNote: vi.fn(),
+    createCreditNote: vi.fn(),
+    postCreditNote: vi.fn(),
+    deleteCreditNote: vi.fn(),
   },
 }));
 
@@ -149,6 +154,40 @@ describe('InvoicesIndex', () => {
         outstanding_receivable_cents: 22600,
       },
     } as ApiSuccessResponse<{ customer_id: string; outstanding_receivable_cents: number }>);
+
+    vi.mocked(salesApi.getCreditNotes).mockResolvedValue({
+      success: true,
+      message: 'Credit notes retrieved successfully.',
+      data: [
+        {
+          id: '01HCN00000000000000001',
+          credit_note_number: 'CN-2026-000001',
+          customer_id: '01HCUSTOMER00000000000001',
+          warehouse_id: '01WH000000000000000001',
+          sales_invoice_id: '01HINVOICE000000000000002',
+          status: 'draft',
+          status_label: 'Draft',
+          issue_date: '2026-10-30',
+          currency: 'USD',
+          subtotal_cents: 5000,
+          tax_cents: 650,
+          total_cents: 5650,
+          reason: 'customer_return',
+          restock: true,
+          notes: 'Test return',
+          created_by_user_id: 'test-user-id',
+          posted_at: null,
+          created_at: '2026-10-30T10:00:00Z',
+          items: [],
+        },
+      ],
+      meta: {
+        current_page: 1,
+        per_page: 25,
+        total: 1,
+        last_page: 1,
+      },
+    } as ApiSuccessResponse<CreditNote[]>);
   });
 
   it('renders invoices list and action buttons', async () => {
@@ -209,5 +248,22 @@ describe('InvoicesIndex', () => {
 
     expect(screen.getByText('Create a direct sales invoice. Items will default to draft status and require posting before payment.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'New Sales Invoice' })).toBeInTheDocument();
+  });
+
+  it('switches to Credit Notes tab and fetches credit notes', async () => {
+    render(<InvoicesIndex />);
+
+    const cnTab = screen.getByRole('button', { name: /Credit Notes/i });
+    fireEvent.click(cnTab);
+
+    await waitFor(() => {
+      expect(salesApi.getCreditNotes).toHaveBeenCalled();
+      expect(screen.getByText('CN-2026-000001')).toBeInTheDocument();
+      expect(screen.getByText('Stock Effect')).toBeInTheDocument();
+      expect(screen.getByText('Restocked')).toBeInTheDocument();
+    });
+
+    const newCnBtn = screen.getByRole('button', { name: /New Credit Note/i });
+    expect(newCnBtn).toBeInTheDocument();
   });
 });

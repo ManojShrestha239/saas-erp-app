@@ -319,4 +319,145 @@ final class DocumentPostingService
             userId: $userId,
         ));
     }
+
+    /**
+     * Post journal entry for a posted customer credit note (sales return / credit memo).
+     *
+     * Debits:
+     * - Sales Revenue (subtotal_cents)
+     * - Output VAT (VAT Payable) (if tax_cents > 0)
+     * - Inventory Asset (if cogsCents > 0)
+     *
+     * Credits:
+     * - Accounts Receivable (total_cents)
+     * - Cost of Goods Sold (if cogsCents > 0)
+     */
+    public function postCreditNote(
+        string $creditNoteId,
+        string $creditNoteNumber,
+        Carbon $issueDate,
+        int $subtotalCents,
+        int $taxCents,
+        int $totalCents,
+        int $cogsCents = 0,
+        string $currency = 'USD',
+        ?string $userId = null,
+    ): JournalEntry {
+        $arAccountId = $this->accountService->getSystemAccount(SystemAccount::AccountsReceivable)->id;
+        $revenueAccountId = $this->accountService->getSystemAccount(SystemAccount::SalesRevenue)->id;
+
+        /** @var list<JournalEntryLineData> $lines */
+        $lines = [
+            new JournalEntryLineData(
+                accountId: $revenueAccountId,
+                debitCents: $subtotalCents,
+                creditCents: 0,
+                description: "Sales Return - Credit Note {$creditNoteNumber}",
+            ),
+            new JournalEntryLineData(
+                accountId: $arAccountId,
+                debitCents: 0,
+                creditCents: $totalCents,
+                description: "Receivable Reduction - Credit Note {$creditNoteNumber}",
+            ),
+        ];
+
+        if ($taxCents > 0) {
+            $vatAccountId = $this->accountService->getSystemAccount(SystemAccount::OutputVat)->id;
+            $lines[] = new JournalEntryLineData(
+                accountId: $vatAccountId,
+                debitCents: $taxCents,
+                creditCents: 0,
+                description: "Output VAT Reversal - Credit Note {$creditNoteNumber}",
+            );
+        }
+
+        if ($cogsCents > 0) {
+            $cogsAccountId = $this->accountService->getSystemAccount(SystemAccount::CostOfGoodsSold)->id;
+            $inventoryAccountId = $this->accountService->getSystemAccount(SystemAccount::InventoryAsset)->id;
+
+            $lines[] = new JournalEntryLineData(
+                accountId: $inventoryAccountId,
+                debitCents: $cogsCents,
+                creditCents: 0,
+                description: "Inventory Restock - Credit Note {$creditNoteNumber}",
+            );
+            $lines[] = new JournalEntryLineData(
+                accountId: $cogsAccountId,
+                debitCents: 0,
+                creditCents: $cogsCents,
+                description: "COGS Reversal - Credit Note {$creditNoteNumber}",
+            );
+        }
+
+        return $this->journalEntryService->post(new PostJournalEntryData(
+            entryDate: $issueDate,
+            lines: $lines,
+            description: "Credit Note {$creditNoteNumber}",
+            sourceType: 'credit_note',
+            sourceId: $creditNoteId,
+            currency: $currency,
+            userId: $userId,
+        ));
+    }
+
+    /**
+     * Post journal entry for a posted supplier debit note (purchase return / vendor debit).
+     *
+     * Debits:
+     * - Accounts Payable (total_cents)
+     *
+     * Credits:
+     * - Inventory Asset (subtotal_cents)
+     * - Input VAT (if tax_cents > 0)
+     */
+    public function postDebitNote(
+        string $debitNoteId,
+        string $debitNoteNumber,
+        Carbon $issueDate,
+        int $subtotalCents,
+        int $taxCents,
+        int $totalCents,
+        string $currency = 'USD',
+        ?string $userId = null,
+    ): JournalEntry {
+        $apAccountId = $this->accountService->getSystemAccount(SystemAccount::AccountsPayable)->id;
+        $inventoryAccountId = $this->accountService->getSystemAccount(SystemAccount::InventoryAsset)->id;
+
+        /** @var list<JournalEntryLineData> $lines */
+        $lines = [
+            new JournalEntryLineData(
+                accountId: $apAccountId,
+                debitCents: $totalCents,
+                creditCents: 0,
+                description: "Accounts Payable Reduction - Debit Note {$debitNoteNumber}",
+            ),
+            new JournalEntryLineData(
+                accountId: $inventoryAccountId,
+                debitCents: 0,
+                creditCents: $subtotalCents,
+                description: "Inventory Return - Debit Note {$debitNoteNumber}",
+            ),
+        ];
+
+        if ($taxCents > 0) {
+            $vatAccountId = $this->accountService->getSystemAccount(SystemAccount::InputVat)->id;
+            $lines[] = new JournalEntryLineData(
+                accountId: $vatAccountId,
+                debitCents: 0,
+                creditCents: $taxCents,
+                description: "Input VAT Reversal - Debit Note {$debitNoteNumber}",
+            );
+        }
+
+        return $this->journalEntryService->post(new PostJournalEntryData(
+            entryDate: $issueDate,
+            lines: $lines,
+            description: "Debit Note {$debitNoteNumber}",
+            sourceType: 'debit_note',
+            sourceId: $debitNoteId,
+            currency: $currency,
+            userId: $userId,
+        ));
+    }
 }

@@ -185,3 +185,73 @@ export interface SupplierPayableResponse {
   supplier_id: string;
   outstanding_payable_cents: number;
 }
+
+export type DebitNoteStatus = 'draft' | 'posted' | 'void';
+
+export interface DebitNoteItem {
+  id: string;
+  debit_note_id: string;
+  product_id: string;
+  description: string | null;
+  quantity: number;
+  unit_cost_cents: number;
+  tax_rate_percent: number;
+  tax_category: string | null;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  notes: string | null;
+  created_at?: string | null;
+}
+
+export interface DebitNote {
+  id: string;
+  debit_note_number: string;
+  supplier_id: string;
+  supplier_bill_id: string | null;
+  warehouse_id: string;
+  status: DebitNoteStatus;
+  status_label: string;
+  issue_date: string;
+  currency: string;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  return_stock: boolean;
+  reason: string;
+  notes: string | null;
+  created_by_user_id: string | null;
+  posted_at: string | null;
+  created_at: string | null;
+  items?: DebitNoteItem[];
+  bill?: SupplierBill;
+}
+
+export interface CreateDebitNoteFormData {
+  supplier_id: string;
+  warehouse_id: string;
+  supplier_bill_id?: string | null;
+  issue_date: string;
+  currency?: string;
+  return_stock?: boolean;
+  reason?: string;
+  notes?: string;
+  items: Array<{
+    product_id: string;
+    quantity: number;
+    unit_cost_cents: number;
+    tax_rate_percent?: number;
+    tax_category?: string;
+    description?: string;
+    notes?: string;
+  }>;
+}
+
+export interface DebitNoteFilters {
+  search?: string;
+  status?: string;
+  supplier_id?: string;
+  supplier_bill_id?: string;
+  page?: number;
+  per_page?: number;
+}

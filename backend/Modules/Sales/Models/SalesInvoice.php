@@ -37,6 +37,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property Carbon|null $updated_at
  * @property-read Collection<int, SalesInvoiceItem> $items
  * @property-read SalesQuotation|null $quotation
+ * @property-read Collection<int, CreditNote> $creditNotes
  */
 final class SalesInvoice extends Model
 {
@@ -103,5 +104,13 @@ final class SalesInvoice extends Model
     public function quotation(): BelongsTo
     {
         return $this->belongsTo(SalesQuotation::class, 'sales_quotation_id');
+    }
+
+    /**
+     * @return HasMany<CreditNote, $this>
+     */
+    public function creditNotes(): HasMany
+    {
+        return $this->hasMany(CreditNote::class, 'sales_invoice_id')->orderBy('created_at');
     }
 }

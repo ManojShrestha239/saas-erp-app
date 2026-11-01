@@ -122,3 +122,75 @@ export interface SalesFilters {
   page?: number;
   per_page?: number;
 }
+
+export type CreditNoteStatus = 'draft' | 'posted' | 'void';
+
+export interface CreditNoteItem {
+  id: string;
+  credit_note_id: string;
+  product_id: string;
+  description: string | null;
+  quantity: number;
+  unit_price_cents: number;
+  tax_rate_percent: number;
+  tax_category: string | null;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  cogs_unit_cost_cents: number;
+  notes: string | null;
+  created_at?: string | null;
+}
+
+export interface CreditNote {
+  id: string;
+  credit_note_number: string;
+  customer_id: string;
+  sales_invoice_id: string | null;
+  warehouse_id: string;
+  status: CreditNoteStatus;
+  status_label: string;
+  issue_date: string;
+  currency: string;
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  restock: boolean;
+  reason: string;
+  notes: string | null;
+  created_by_user_id: string | null;
+  posted_at: string | null;
+  created_at: string | null;
+  items?: CreditNoteItem[];
+  invoice?: SalesInvoice;
+}
+
+export interface CreateCreditNoteFormData {
+  customer_id: string;
+  warehouse_id: string;
+  sales_invoice_id?: string | null;
+  issue_date: string;
+  currency?: string;
+  restock?: boolean;
+  reason?: string;
+  notes?: string;
+  items: Array<{
+    product_id: string;
+    quantity: number;
+    unit_price_cents: number;
+    tax_rate_percent?: number;
+    tax_category?: string;
+    description?: string;
+    notes?: string;
+    cogs_unit_cost_cents?: number;
+  }>;
+}
+
+export interface CreditNoteFilters {
+  search?: string;
+  status?: string;
+  customer_id?: string;
+  sales_invoice_id?: string;
+  page?: number;
+  per_page?: number;
+}

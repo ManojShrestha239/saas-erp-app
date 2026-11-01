@@ -10,8 +10,10 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Purchasing\DTOs\CreateSupplierBillData;
 use Modules\Purchasing\DTOs\SupplierBillItemData;
+use Modules\Purchasing\Enums\DebitNoteStatus;
 use Modules\Purchasing\Enums\SupplierBillStatus;
 use Modules\Purchasing\Events\SupplierBillPosted;
+use Modules\Purchasing\Models\DebitNote;
 use Modules\Purchasing\Models\PurchaseOrder;
 use Modules\Purchasing\Models\SupplierBill;
 use Shared\Enums\DocumentType;
@@ -391,6 +393,13 @@ final class SupplierBillService
                 ->whereIn('status', $validStatuses)
                 ->whereDate('bill_date', '<', $startDate->toDateString())
                 ->sum('total_cents');
+
+            $priorDebitedCents = (int) DebitNote::where('supplier_id', $supplierId)
+                ->where('status', DebitNoteStatus::Posted)
+                ->whereDate('issue_date', '<', $startDate->toDateString())
+                ->sum('total_cents');
+
+            $priorBilledCents -= $priorDebitedCents;
         }
 
         $query = SupplierBill::where('supplier_id', $supplierId)
@@ -419,6 +428,34 @@ final class SupplierBillService
                 'credit_cents' => $bill->total_cents,
                 'amount_due_cents' => $bill->amount_due_cents,
                 'status' => $bill->status->value,
+            ];
+        }
+
+        // Include posted debit notes
+        $dnQuery = DebitNote::where('supplier_id', $supplierId)
+            ->where('status', DebitNoteStatus::Posted);
+
+        if ($startDate !== null) {
+            $dnQuery->whereDate('issue_date', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            $dnQuery->whereDate('issue_date', '<=', $endDate->toDateString());
+        }
+
+        $debitNotes = $dnQuery->orderBy('issue_date', 'asc')->orderBy('debit_note_number', 'asc')->get();
+        foreach ($debitNotes as $dn) {
+            $transactions[] = [
+                'id' => (string) $dn->id,
+                'date' => Carbon::parse($dn->issue_date)->toDateString(),
+                'due_date' => null,
+                'document_number' => $dn->debit_note_number,
+                'type' => 'debit_note',
+                'description' => "Debit Note {$dn->debit_note_number}",
+                'debit_cents' => $dn->total_cents,
+                'credit_cents' => 0,
+                'amount_due_cents' => 0,
+                'status' => $dn->status->value,
             ];
         }
 

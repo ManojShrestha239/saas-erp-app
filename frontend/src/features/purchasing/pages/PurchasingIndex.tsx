@@ -18,6 +18,7 @@ import { GoodsReceiptModal } from '../components/GoodsReceiptModal';
 import { SupplierBillFormModal } from '../components/SupplierBillFormModal';
 import { PurchaseOrderDetailModal } from '../components/PurchaseOrderDetailModal';
 import { SupplierBillDetailModal } from '../components/SupplierBillDetailModal';
+import { DebitNoteModal } from '../components/DebitNoteModal';
 import { useCan } from '@/features/auth/hooks/useCan';
 import { purchasingApi } from '../api/purchasingApi';
 import { contactsApi } from '@/features/contacts/api/contactsApi';
@@ -27,6 +28,8 @@ import type {
   PurchaseOrderStatus,
   SupplierBill,
   SupplierBillStatus,
+  DebitNote,
+  DebitNoteStatus,
 } from '../types/purchasing.types';
 import type { ContactItem } from '@/features/contacts/types/contacts.types';
 import type { ProductItem, WarehouseItem } from '@/features/inventory/types/inventory.types';
@@ -45,9 +48,12 @@ import {
   XCircle,
   AlertCircle,
   TrendingDown,
+  RotateCcw,
+  Trash2,
+  CheckCircle,
 } from 'lucide-react';
 
-type TabKey = 'orders' | 'bills' | 'payables';
+type TabKey = 'orders' | 'bills' | 'debit_notes' | 'payables';
 
 function formatMoneyCents(cents: number): string {
   const amount = cents / 100;
@@ -135,7 +141,28 @@ export default function PurchasingIndex() {
   const [viewingBill, setViewingBill] = useState<SupplierBill | null>(null);
 
   // ----------------------------------------------------
-  // Tab 3: Payables Balances State
+  // Tab 3: Debit Notes State
+  // ----------------------------------------------------
+  const [debitNotes, setDebitNotes] = useState<DebitNote[]>([]);
+  const [dnLoading, setDnLoading] = useState(false);
+  const [dnTotal, setDnTotal] = useState(0);
+  const [dnSearch, setDnSearch] = useState('');
+  const [dnStatusFilter, setDnStatusFilter] = useState<DebitNoteStatus | 'all'>('all');
+  const [dnPagination, setDnPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  });
+  const [dnSorting, setDnSorting] = useState<SortingState>([
+    { id: 'created_at', desc: true },
+  ]);
+
+  // Debit Note Modals
+  const [isDebitNoteModalOpen, setIsDebitNoteModalOpen] = useState(false);
+  const [viewingDebitNote, setViewingDebitNote] = useState<DebitNote | null>(null);
+  const [debitNoteInitialBill, setDebitNoteInitialBill] = useState<SupplierBill | null>(null);
+
+  // ----------------------------------------------------
+  // Tab 4: Payables Balances State
   // ----------------------------------------------------
   const [payablesLoading, setPayablesLoading] = useState(false);
   const [supplierBalances, setSupplierBalances] = useState<Array<{ supplier: ContactItem; balanceCents: number }>>([]);
@@ -213,6 +240,32 @@ export default function PurchasingIndex() {
     }
   }, [billSearch, billStatusFilter, billPagination]);
 
+  // Fetch Debit Notes
+  const fetchDebitNotes = useCallback(async () => {
+    setDnLoading(true);
+    try {
+      const statusParam = dnStatusFilter === 'all' ? undefined : dnStatusFilter;
+      const res = await purchasingApi.getDebitNotes({
+        search: dnSearch || undefined,
+        status: statusParam,
+        page: dnPagination.pageIndex + 1,
+        per_page: dnPagination.pageSize,
+      });
+
+      setDebitNotes(res.data);
+      if (res.meta && typeof res.meta.total === 'number') {
+        setDnTotal(res.meta.total);
+      } else {
+        setDnTotal(res.data.length);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch debit notes';
+      setFeedback({ type: 'error', message: msg });
+    } finally {
+      setDnLoading(false);
+    }
+  }, [dnSearch, dnStatusFilter, dnPagination]);
+
   // Fetch Supplier Payables
   const fetchPayables = useCallback(async () => {
     if (suppliers.length === 0) return;
@@ -241,10 +294,42 @@ export default function PurchasingIndex() {
       fetchPurchaseOrders();
     } else if (activeTab === 'bills') {
       fetchBills();
+    } else if (activeTab === 'debit_notes') {
+      fetchDebitNotes();
     } else if (activeTab === 'payables') {
       fetchPayables();
     }
-  }, [activeTab, fetchPurchaseOrders, fetchBills, fetchPayables]);
+  }, [activeTab, fetchPurchaseOrders, fetchBills, fetchDebitNotes, fetchPayables]);
+
+  const handlePostDebitNote = useCallback(async (dn: DebitNote) => {
+    try {
+      await purchasingApi.postDebitNote(dn.id);
+      setFeedback({
+        type: 'success',
+        message: `Debit Note "${dn.debit_note_number}" successfully posted. Accounts payable balance and inventory updated.`,
+      });
+      fetchDebitNotes();
+      fetchBills();
+      if (activeTab === 'payables') fetchPayables();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to post debit note.';
+      setFeedback({ type: 'error', message: msg });
+    }
+  }, [fetchDebitNotes, fetchBills, fetchPayables, activeTab]);
+
+  const handleDeleteDebitNote = useCallback(async (dn: DebitNote) => {
+    try {
+      await purchasingApi.deleteDebitNote(dn.id);
+      setFeedback({
+        type: 'success',
+        message: `Draft debit note "${dn.debit_note_number}" has been deleted.`,
+      });
+      fetchDebitNotes();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete debit note.';
+      setFeedback({ type: 'error', message: msg });
+    }
+  }, [fetchDebitNotes]);
 
   // Quick Action Handlers
   const handleApprovePo = useCallback(async (po: PurchaseOrder) => {
@@ -535,19 +620,186 @@ export default function PurchasingIndex() {
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setViewingBill(row.original)}
-          className="h-8 w-8 p-0"
-          title="View Bill Details"
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
-      ),
+      cell: ({ row }) => {
+        const bill = row.original;
+        const canDebit = canManagePurchases && bill.status !== 'draft' && bill.status !== 'void';
+
+        return (
+          <div className="flex items-center gap-1 justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setViewingBill(bill)}
+              className="h-8 w-8 p-0"
+              title="View Bill Details"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {canDebit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setViewingDebitNote(null);
+                  setDebitNoteInitialBill(bill);
+                  setIsDebitNoteModalOpen(true);
+                }}
+                className="h-8 w-8 p-0 text-primary"
+                title="Create Debit Note"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
-  ], [suppliers]);
+  ], [suppliers, canManagePurchases]);
+
+  // ----------------------------------------------------
+  // Table Columns: Debit Notes
+  // ----------------------------------------------------
+  const dnColumns = useMemo<ColumnDef<DebitNote>[]>(() => [
+    {
+      accessorKey: 'debit_note_number',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="DN Number" />,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+          {row.getValue('debit_note_number')}
+        </span>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'supplier_id',
+      header: 'Supplier',
+      cell: ({ row }) => {
+        const supp = suppliers.find((s) => s.id === row.original.supplier_id);
+        return (
+          <div className="flex flex-col">
+            <span className="font-semibold text-foreground text-xs">{supp?.name || row.original.supplier_id}</span>
+            {supp?.code && <span className="font-mono text-[10px] text-muted-foreground">{supp.code}</span>}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'supplier_bill_id',
+      header: 'Bill Ref',
+      cell: ({ row }) => {
+        const billId = row.original.supplier_bill_id;
+        if (!billId) return <span className="text-xs text-muted-foreground">—</span>;
+        const linkedBill = bills.find((b) => b.id === billId);
+        return (
+          <span className="font-mono text-xs text-muted-foreground">
+            {linkedBill ? linkedBill.bill_number : billId.substring(0, 8) + '...'}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'issue_date',
+      header: 'Issue Date',
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{formatDate(row.original.issue_date)}</span>,
+    },
+    {
+      accessorKey: 'return_stock',
+      header: 'Stock Effect',
+      cell: ({ row }) => {
+        const returnStock = row.original.return_stock;
+        return (
+          <Badge
+            variant="outline"
+            className={
+              returnStock
+                ? 'bg-amber-500/10 text-amber-700 border-amber-500/20 text-[10px]'
+                : 'bg-muted text-muted-foreground text-[10px]'
+            }
+          >
+            {returnStock ? 'Stock Returned' : 'No Return'}
+          </Badge>
+        );
+      },
+    },
+    {
+      accessorKey: 'total_cents',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Total Debit" />,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-semibold text-foreground">
+          {formatMoneyCents(row.original.total_cents)}
+        </span>
+      ),
+      enableSorting: true,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = row.original.status;
+        const label = row.original.status_label || status;
+        const badgeClass =
+          status === 'posted'
+            ? 'bg-blue-500/10 text-blue-600 border-blue-500/20'
+            : status === 'void'
+            ? 'bg-destructive/10 text-destructive border-destructive/20'
+            : 'bg-muted text-muted-foreground';
+
+        return (
+          <Badge variant="outline" className={`capitalize text-[11px] ${badgeClass}`}>
+            {label}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => {
+        const dn = row.original;
+        const isDraft = dn.status === 'draft';
+
+        return (
+          <div className="flex items-center gap-1 justify-end">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setViewingDebitNote(dn);
+                setDebitNoteInitialBill(null);
+                setIsDebitNoteModalOpen(true);
+              }}
+              className="h-8 w-8 p-0"
+              title="View Debit Note"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {canManagePurchases && isDraft && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handlePostDebitNote(dn)}
+                  className="h-8 w-8 p-0 text-emerald-600"
+                  title="Post Debit Note"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteDebitNote(dn)}
+                  className="h-8 w-8 p-0 text-destructive"
+                  title="Delete Draft"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      },
+    },
+  ], [suppliers, bills, canManagePurchases, handlePostDebitNote, handleDeleteDebitNote]);
 
   // Total AP Balance calculation
   const totalOutstandingApCents = useMemo(
@@ -571,14 +823,29 @@ export default function PurchasingIndex() {
 
           <div className="flex flex-wrap items-center gap-2.5">
             {canManagePurchases && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsBillModalOpen(true)}
-                className="gap-2 text-xs h-9"
-              >
-                <ReceiptText className="h-4 w-4" /> Create Supplier Bill
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setViewingDebitNote(null);
+                    setDebitNoteInitialBill(null);
+                    setIsDebitNoteModalOpen(true);
+                  }}
+                  className="gap-2 text-xs h-9"
+                >
+                  <RotateCcw className="h-4 w-4" /> Create Debit Note
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsBillModalOpen(true)}
+                  className="gap-2 text-xs h-9"
+                >
+                  <ReceiptText className="h-4 w-4" /> Create Supplier Bill
+                </Button>
+              </>
             )}
 
             {canDraftPo && (
@@ -627,6 +894,7 @@ export default function PurchasingIndex() {
           {[
             { id: 'orders', label: 'Purchase Orders', icon: FileText, count: poTotal },
             { id: 'bills', label: 'Supplier Bills', icon: ReceiptText, count: billsTotal },
+            { id: 'debit_notes', label: 'Debit Notes', icon: RotateCcw, count: dnTotal },
             { id: 'payables', label: 'Accounts Payable Overview', icon: DollarSign, count: supplierBalances.length },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -800,7 +1068,76 @@ export default function PurchasingIndex() {
           </div>
         )}
 
-        {/* TAB 3: Accounts Payable Overview */}
+        {/* TAB 3: Debit Notes */}
+        {activeTab === 'debit_notes' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label="Filter debit notes by status"
+                  className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground"
+                  value={dnStatusFilter}
+                  onChange={(e) => {
+                    setDnStatusFilter(e.target.value as DebitNoteStatus | 'all');
+                    setDnPagination((p) => ({ ...p, pageIndex: 0 }));
+                  }}
+                >
+                  <option value="all">All Debit Note Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="posted">Posted</option>
+                  <option value="void">Voided</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search debit note #..."
+                    value={dnSearch}
+                    onChange={(e) => {
+                      setDnSearch(e.target.value);
+                      setDnPagination((p) => ({ ...p, pageIndex: 0 }));
+                    }}
+                    className="pl-8 h-9 text-xs"
+                  />
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchDebitNotes}
+                  disabled={dnLoading}
+                  className="h-9 w-9 p-0"
+                  title="Refresh Debit Notes"
+                >
+                  <RefreshCw className={`h-4 w-4 ${dnLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+
+            <DataTable
+              columns={dnColumns}
+              data={debitNotes}
+              isLoading={dnLoading}
+              serverSide={{
+                totalRows: dnTotal,
+                pagination: dnPagination,
+                onPaginationChange: setDnPagination,
+                sorting: dnSorting,
+                onSortingChange: setDnSorting,
+              }}
+              emptyTitle="No debit notes found"
+              emptyDescription={
+                dnSearch || dnStatusFilter !== 'all'
+                  ? 'Try modifying your filter or search keywords.'
+                  : 'Record debit notes for purchase returns and supplier liability reductions.'
+              }
+            />
+          </div>
+        )}
+
+        {/* TAB 4: Accounts Payable Overview */}
         {activeTab === 'payables' && (
           <div className="space-y-4">
             {/* Top KPI Card */}
@@ -927,6 +1264,19 @@ export default function PurchasingIndex() {
           onSuccess={(msg) => {
             setFeedback({ type: 'success', message: msg });
             fetchBills();
+          }}
+        />
+
+        {/* Debit Note Modal */}
+        <DebitNoteModal
+          open={isDebitNoteModalOpen}
+          onOpenChange={setIsDebitNoteModalOpen}
+          debitNote={viewingDebitNote}
+          initialBill={debitNoteInitialBill}
+          onSuccess={() => {
+            fetchDebitNotes();
+            fetchBills();
+            if (activeTab === 'payables') fetchPayables();
           }}
         />
       </div>

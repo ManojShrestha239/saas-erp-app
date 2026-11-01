@@ -7,6 +7,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
+use Modules\Sales\Http\Controllers\CreditNoteController;
 use Modules\Sales\Http\Controllers\SalesInvoiceController;
 use Modules\Sales\Http\Controllers\SalesQuotationController;
 
@@ -38,4 +39,12 @@ Route::middleware([
     Route::post('sales/invoices/{id}/post', [SalesInvoiceController::class, 'post'])->name('sales.invoices.post');
     Route::post('sales/invoices/{id}/void', [SalesInvoiceController::class, 'void'])->name('sales.invoices.void');
     Route::get('sales/customers/{customerId}/receivable-balance', [SalesInvoiceController::class, 'customerReceivableBalance'])->name('sales.customers.receivable-balance');
+
+    // Credit Notes
+    Route::get('sales/credit-notes', [CreditNoteController::class, 'index'])->name('sales.credit-notes.index');
+    Route::post('sales/credit-notes', [CreditNoteController::class, 'store'])->name('sales.credit-notes.store');
+    Route::get('sales/credit-notes/{id}', [CreditNoteController::class, 'show'])->name('sales.credit-notes.show');
+    Route::put('sales/credit-notes/{id}', [CreditNoteController::class, 'update'])->name('sales.credit-notes.update');
+    Route::delete('sales/credit-notes/{id}', [CreditNoteController::class, 'destroy'])->name('sales.credit-notes.destroy');
+    Route::post('sales/credit-notes/{id}/post', [CreditNoteController::class, 'post'])->name('sales.credit-notes.post');
 });

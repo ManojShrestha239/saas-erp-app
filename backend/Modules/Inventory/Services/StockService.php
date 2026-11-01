@@ -84,7 +84,11 @@ final class StockService
             // Moving average cost calculation on additions vs issues
             $movementUnitCost = $data->unitCostCents > 0 ? $data->unitCostCents : $lockedProduct->cost_price_cents;
 
-            if ($data->type === StockMovementType::PurchaseReceipt || ($data->type === StockMovementType::AdjustmentIn && $data->unitCostCents > 0)) {
+            if (
+                $data->type === StockMovementType::PurchaseReceipt
+                || ($data->type === StockMovementType::AdjustmentIn && $data->unitCostCents > 0)
+                || ($data->type === StockMovementType::SalesReturn && $data->unitCostCents > 0)
+            ) {
                 $newAvgCost = $this->costingService->calculateMovingWeightedAverage(
                     currentQuantity: $currentTotalOnHand,
                     currentUnitCostCents: $lockedProduct->cost_price_cents,

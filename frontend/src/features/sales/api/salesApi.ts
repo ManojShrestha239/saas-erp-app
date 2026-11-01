@@ -6,6 +6,9 @@ import type {
   CreateQuotationFormData,
   CreateInvoiceFormData,
   SalesFilters,
+  CreditNote,
+  CreateCreditNoteFormData,
+  CreditNoteFilters,
 } from '../types/sales.types';
 
 export interface ConvertQuotationPayload {
@@ -102,5 +105,35 @@ export const salesApi = {
     return apiClient.get<CustomerReceivableResponse>(
       `/sales/customers/${customerId}/receivable-balance`
     );
+  },
+
+  // Credit Notes
+  getCreditNotes: (filters?: CreditNoteFilters): Promise<ApiSuccessResponse<CreditNote[]>> => {
+    return apiClient.get<CreditNote[]>('/sales/credit-notes', {
+      params: filters as Record<string, string | number | boolean | undefined | null>,
+    });
+  },
+
+  getCreditNote: (id: string): Promise<ApiSuccessResponse<CreditNote>> => {
+    return apiClient.get<CreditNote>(`/sales/credit-notes/${id}`);
+  },
+
+  createCreditNote: (data: CreateCreditNoteFormData): Promise<ApiSuccessResponse<CreditNote>> => {
+    return apiClient.post<CreditNote>('/sales/credit-notes', data);
+  },
+
+  updateCreditNote: (
+    id: string,
+    data: Partial<CreateCreditNoteFormData>
+  ): Promise<ApiSuccessResponse<CreditNote>> => {
+    return apiClient.put<CreditNote>(`/sales/credit-notes/${id}`, data);
+  },
+
+  deleteCreditNote: (id: string): Promise<ApiSuccessResponse<null>> => {
+    return apiClient.delete<null>(`/sales/credit-notes/${id}`);
+  },
+
+  postCreditNote: (id: string): Promise<ApiSuccessResponse<CreditNote>> => {
+    return apiClient.post<CreditNote>(`/sales/credit-notes/${id}/post`);
   },
 };

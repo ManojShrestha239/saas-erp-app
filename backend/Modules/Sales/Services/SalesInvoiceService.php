@@ -15,10 +15,12 @@ use Modules\Inventory\Services\ProductService;
 use Modules\Inventory\Services\StockService;
 use Modules\Inventory\Services\WarehouseService;
 use Modules\Sales\DTOs\CreateSalesInvoiceData;
+use Modules\Sales\Enums\CreditNoteStatus;
 use Modules\Sales\Enums\SalesInvoiceStatus;
 use Modules\Sales\Events\SalesInvoicePosted;
 use Modules\Sales\Events\SalesInvoicePostedToLedger;
 use Modules\Sales\Events\SalesInvoiceVoided;
+use Modules\Sales\Models\CreditNote;
 use Modules\Sales\Models\SalesInvoice;
 use Shared\Enums\DocumentType;
 use Shared\Exceptions\ApiException;
@@ -636,6 +638,13 @@ final class SalesInvoiceService
                 ->whereIn('status', $validStatuses)
                 ->whereDate('issue_date', '<', $startDate->toDateString())
                 ->sum('total_cents');
+
+            $priorCreditedCents = (int) CreditNote::where('customer_id', $customerId)
+                ->where('status', CreditNoteStatus::Posted)
+                ->whereDate('issue_date', '<', $startDate->toDateString())
+                ->sum('total_cents');
+
+            $priorInvoicedCents -= $priorCreditedCents;
         }
 
         $query = SalesInvoice::where('customer_id', $customerId)
@@ -664,6 +673,34 @@ final class SalesInvoiceService
                 'credit_cents' => 0,
                 'amount_due_cents' => $invoice->amount_due_cents,
                 'status' => $invoice->status->value,
+            ];
+        }
+
+        // Include posted credit notes
+        $cnQuery = CreditNote::where('customer_id', $customerId)
+            ->where('status', CreditNoteStatus::Posted);
+
+        if ($startDate !== null) {
+            $cnQuery->whereDate('issue_date', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            $cnQuery->whereDate('issue_date', '<=', $endDate->toDateString());
+        }
+
+        $creditNotes = $cnQuery->orderBy('issue_date', 'asc')->orderBy('credit_note_number', 'asc')->get();
+        foreach ($creditNotes as $cn) {
+            $transactions[] = [
+                'id' => (string) $cn->id,
+                'date' => Carbon::parse($cn->issue_date)->toDateString(),
+                'due_date' => null,
+                'document_number' => $cn->credit_note_number,
+                'type' => 'credit_note',
+                'description' => "Credit Note {$cn->credit_note_number}",
+                'debit_cents' => 0,
+                'credit_cents' => $cn->total_cents,
+                'amount_due_cents' => 0,
+                'status' => $cn->status->value,
             ];
         }
 

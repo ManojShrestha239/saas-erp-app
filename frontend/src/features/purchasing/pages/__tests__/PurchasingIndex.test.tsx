@@ -22,6 +22,41 @@ vi.mock('../../api/purchasingApi', () => ({
     getBill: vi.fn(),
     createBill: vi.fn(),
     postBill: vi.fn(),
+    getDebitNotes: vi.fn().mockResolvedValue({
+      success: true,
+      message: 'OK',
+      data: [
+        {
+          id: '01HDN00000000000000001',
+          debit_note_number: 'DN-2026-000001',
+          supplier_id: '01SUPP0000000000000001',
+          warehouse_id: '01WH000000000000000001',
+          supplier_bill_id: '01HBILL0000000000000001',
+          status: 'draft',
+          status_label: 'Draft',
+          issue_date: '2026-10-30',
+          currency: 'USD',
+          subtotal_cents: 12000,
+          tax_cents: 1560,
+          total_cents: 13560,
+          reason: 'supplier_return',
+          return_stock: true,
+          notes: 'Test supplier return',
+          created_by_user_id: 'test-user-id',
+          posted_by_user_id: null,
+          posted_at: null,
+          voided_at: null,
+          created_at: '2026-10-30T10:00:00Z',
+          updated_at: '2026-10-30T10:00:00Z',
+          items: [],
+        },
+      ],
+      meta: { current_page: 1, per_page: 25, total: 1, last_page: 1 },
+    }),
+    getDebitNote: vi.fn(),
+    createDebitNote: vi.fn(),
+    postDebitNote: vi.fn(),
+    deleteDebitNote: vi.fn(),
     getSupplierPayableBalance: vi.fn().mockResolvedValue({
       success: true,
       message: 'OK',
@@ -381,5 +416,22 @@ describe('PurchasingIndex Component', () => {
         })
       );
     });
+  });
+
+  it('switches to Debit Notes tab and fetches debit notes', async () => {
+    render(<PurchasingIndex />);
+
+    const dnTab = screen.getByRole('button', { name: /Debit Notes/i });
+    fireEvent.click(dnTab);
+
+    await waitFor(() => {
+      expect(purchasingApi.getDebitNotes).toHaveBeenCalled();
+      expect(screen.getByText('DN-2026-000001')).toBeInTheDocument();
+      expect(screen.getByText('Stock Effect')).toBeInTheDocument();
+      expect(screen.getByText('Stock Returned')).toBeInTheDocument();
+    });
+
+    const createDnBtn = screen.getByRole('button', { name: /Create Debit Note/i });
+    expect(createDnBtn).toBeInTheDocument();
   });
 });

@@ -10,6 +10,9 @@ import type {
   SupplierBillFilters,
   SupplierBillFormData,
   SupplierPayableResponse,
+  DebitNote,
+  DebitNoteFilters,
+  CreateDebitNoteFormData,
 } from '../types/purchasing.types';
 
 export const purchasingApi = {
@@ -66,5 +69,35 @@ export const purchasingApi = {
 
   getSupplierPayableBalance: (supplierId: string): Promise<ApiSuccessResponse<SupplierPayableResponse>> => {
     return apiClient.get<SupplierPayableResponse>(`/purchasing/suppliers/${supplierId}/payable-balance`);
+  },
+
+  // Debit Notes
+  getDebitNotes: (filters?: DebitNoteFilters): Promise<ApiSuccessResponse<DebitNote[]>> => {
+    return apiClient.get<DebitNote[]>('/purchasing/debit-notes', {
+      params: filters as Record<string, string | number | boolean | undefined | null>,
+    });
+  },
+
+  getDebitNote: (id: string): Promise<ApiSuccessResponse<DebitNote>> => {
+    return apiClient.get<DebitNote>(`/purchasing/debit-notes/${id}`);
+  },
+
+  createDebitNote: (data: CreateDebitNoteFormData): Promise<ApiSuccessResponse<DebitNote>> => {
+    return apiClient.post<DebitNote>('/purchasing/debit-notes', data);
+  },
+
+  updateDebitNote: (
+    id: string,
+    data: Partial<CreateDebitNoteFormData>
+  ): Promise<ApiSuccessResponse<DebitNote>> => {
+    return apiClient.put<DebitNote>(`/purchasing/debit-notes/${id}`, data);
+  },
+
+  deleteDebitNote: (id: string): Promise<ApiSuccessResponse<null>> => {
+    return apiClient.delete<null>(`/purchasing/debit-notes/${id}`);
+  },
+
+  postDebitNote: (id: string): Promise<ApiSuccessResponse<DebitNote>> => {
+    return apiClient.post<DebitNote>(`/purchasing/debit-notes/${id}/post`);
   },
 };

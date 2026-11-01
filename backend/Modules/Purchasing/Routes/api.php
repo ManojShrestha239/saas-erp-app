@@ -7,6 +7,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
+use Modules\Purchasing\Http\Controllers\DebitNoteController;
 use Modules\Purchasing\Http\Controllers\GoodsReceiptController;
 use Modules\Purchasing\Http\Controllers\PurchaseOrderController;
 use Modules\Purchasing\Http\Controllers\SupplierBillController;
@@ -36,4 +37,12 @@ Route::middleware([
     Route::get('purchasing/bills/{id}', [SupplierBillController::class, 'show'])->name('purchasing.bills.show');
     Route::post('purchasing/bills/{id}/post', [SupplierBillController::class, 'postBill'])->name('purchasing.bills.post');
     Route::get('purchasing/suppliers/{supplierId}/payable-balance', [SupplierBillController::class, 'supplierBalance'])->name('purchasing.suppliers.payable-balance');
+
+    // Debit Notes
+    Route::get('purchasing/debit-notes', [DebitNoteController::class, 'index'])->name('purchasing.debit-notes.index');
+    Route::post('purchasing/debit-notes', [DebitNoteController::class, 'store'])->name('purchasing.debit-notes.store');
+    Route::get('purchasing/debit-notes/{id}', [DebitNoteController::class, 'show'])->name('purchasing.debit-notes.show');
+    Route::put('purchasing/debit-notes/{id}', [DebitNoteController::class, 'update'])->name('purchasing.debit-notes.update');
+    Route::delete('purchasing/debit-notes/{id}', [DebitNoteController::class, 'destroy'])->name('purchasing.debit-notes.destroy');
+    Route::post('purchasing/debit-notes/{id}/post', [DebitNoteController::class, 'post'])->name('purchasing.debit-notes.post');
 });

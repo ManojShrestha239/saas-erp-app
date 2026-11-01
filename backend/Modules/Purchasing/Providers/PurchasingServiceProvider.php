@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Modules\Purchasing\Providers;
 
 use Illuminate\Support\Facades\Gate;
+use Modules\Purchasing\Models\DebitNote;
 use Modules\Purchasing\Models\PurchaseOrder;
 use Modules\Purchasing\Models\SupplierBill;
+use Modules\Purchasing\Policies\DebitNotePolicy;
 use Modules\Purchasing\Policies\PurchaseOrderPolicy;
 use Modules\Purchasing\Policies\SupplierBillPolicy;
 use Shared\Providers\ModuleServiceProvider;
@@ -24,5 +26,6 @@ final class PurchasingServiceProvider extends ModuleServiceProvider
 
         Gate::policy(PurchaseOrder::class, PurchaseOrderPolicy::class);
         Gate::policy(SupplierBill::class, SupplierBillPolicy::class);
+        Gate::policy(DebitNote::class, DebitNotePolicy::class);
     }
 }

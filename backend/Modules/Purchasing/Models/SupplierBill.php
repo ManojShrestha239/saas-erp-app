@@ -35,6 +35,7 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property Carbon|null $updated_at
  * @property-read PurchaseOrder|null $purchaseOrder
  * @property-read Collection<int, SupplierBillItem> $items
+ * @property-read Collection<int, DebitNote> $debitNotes
  */
 final class SupplierBill extends Model
 {
@@ -98,5 +99,13 @@ final class SupplierBill extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SupplierBillItem::class, 'supplier_bill_id');
+    }
+
+    /**
+     * @return HasMany<DebitNote, $this>
+     */
+    public function debitNotes(): HasMany
+    {
+        return $this->hasMany(DebitNote::class, 'supplier_bill_id')->orderBy('created_at');
     }
 }
