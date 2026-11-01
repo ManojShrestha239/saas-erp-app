@@ -207,3 +207,73 @@ export interface GetLowStockParams {
   sort_by?: string;
   sort_direction?: 'asc' | 'desc';
 }
+
+export interface WarehouseValuationBreakdown {
+  warehouse_id: string;
+  warehouse_name: string;
+  quantity_on_hand: number;
+  valuation_cents: number;
+}
+
+export interface ProductValuationItem {
+  product_id: string;
+  sku: string;
+  name: string;
+  category_name: string | null;
+  unit_of_measure_name: string | null;
+  total_quantity_on_hand: number;
+  moving_average_cost_cents: number;
+  selling_price_cents: number;
+  total_valuation_cents: number;
+  margin_percent: number | null;
+  is_active: boolean;
+  warehouse_breakdown: WarehouseValuationBreakdown[];
+}
+
+export interface ValuationSummary {
+  total_valuation_cents: number;
+  total_units_on_hand: number;
+  total_products_count: number;
+  valued_products_count: number;
+  currency: string;
+}
+
+export interface ValuationFilters {
+  search?: string;
+  category_id?: string;
+  warehouse_id?: string;
+  in_stock_only?: boolean;
+  page?: number;
+  per_page?: number;
+  sort_field?: string;
+  sort_direction?: 'asc' | 'desc';
+}
+
+export interface CostHistoryItem {
+  movement_id: string;
+  created_at: string;
+  type: string;
+  type_label: string;
+  warehouse_name: string;
+  quantity_delta: number;
+  movement_unit_cost_cents: number;
+  source_type: string | null;
+  source_id: string | null;
+  notes: string | null;
+  resulting_average_cost_cents: number;
+  resulting_valuation_cents: number;
+}
+
+export interface ProductCostHistoryResponse {
+  product: {
+    id: string;
+    sku: string;
+    name: string;
+    category_name: string | null;
+    unit_of_measure_name: string | null;
+    current_moving_average_cost_cents: number;
+    total_quantity_on_hand: number;
+    total_valuation_cents: number;
+  };
+  history: CostHistoryItem[];
+}

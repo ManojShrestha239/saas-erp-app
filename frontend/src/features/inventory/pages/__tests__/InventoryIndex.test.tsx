@@ -28,6 +28,8 @@ vi.mock('../../api/inventoryApi', () => ({
     getLowStock: vi.fn(),
     getStockAdjustments: vi.fn(),
     createStockAdjustment: vi.fn(),
+    getValuation: vi.fn(),
+    getCostHistory: vi.fn(),
     uploadProductCsv: vi.fn(),
     getProductImportStatus: vi.fn(),
     getProductTemplateUrl: vi.fn().mockReturnValue('/api/v1/inventory/products/import/template'),
@@ -176,6 +178,61 @@ const mockAdjustments: StockAdjustmentItem[] = [
   },
 ];
 
+const mockValuationResponse = {
+  items: [
+    {
+      product_id: '01HPROD0000000000000001',
+      sku: 'STL-ROD-12',
+      name: 'Standard Steel Rod 12mm',
+      category_name: 'Construction Materials',
+      unit_of_measure_name: 'Pieces',
+      total_quantity_on_hand: 40,
+      moving_average_cost_cents: 120000,
+      selling_price_cents: 150000,
+      total_valuation_cents: 4800000,
+      margin_percent: 20,
+      is_active: true,
+      warehouse_breakdown: [],
+    },
+  ],
+  summary: {
+    total_valuation_cents: 4800000,
+    total_units_on_hand: 40,
+    total_products_count: 2,
+    valued_products_count: 1,
+    currency: 'NPR',
+  },
+};
+
+const mockCostHistoryResponse = {
+  product: {
+    id: '01HPROD0000000000000001',
+    sku: 'STL-ROD-12',
+    name: 'Standard Steel Rod 12mm',
+    category_name: 'Construction Materials',
+    unit_of_measure_name: 'Pieces',
+    current_moving_average_cost_cents: 120000,
+    total_quantity_on_hand: 40,
+    total_valuation_cents: 4800000,
+  },
+  history: [
+    {
+      movement_id: '01HMOV0000000000000001',
+      created_at: '2026-10-28T10:00:00Z',
+      type: 'purchase_receipt',
+      type_label: 'Purchase Receipt',
+      warehouse_name: 'Central Warehouse Kathmandu',
+      quantity_delta: 40,
+      movement_unit_cost_cents: 120000,
+      source_type: 'goods_receipt',
+      source_id: 'GRN-2026-000001',
+      notes: 'Initial PO receipt',
+      resulting_average_cost_cents: 120000,
+      resulting_valuation_cents: 4800000,
+    },
+  ],
+};
+
 describe('InventoryIndex Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -218,6 +275,19 @@ describe('InventoryIndex Component', () => {
       data: mockAdjustments,
       meta: { page: 1, per_page: 25, total: 1 },
     } as ApiSuccessResponse<StockAdjustmentItem[]>);
+
+    vi.mocked(inventoryApi.getValuation).mockResolvedValue({
+      success: true,
+      message: 'OK',
+      data: mockValuationResponse,
+      meta: { total: 1 },
+    } as unknown as ApiSuccessResponse<{ items: typeof mockValuationResponse.items; summary: typeof mockValuationResponse.summary }>);
+
+    vi.mocked(inventoryApi.getCostHistory).mockResolvedValue({
+      success: true,
+      message: 'OK',
+      data: mockCostHistoryResponse,
+    } as unknown as ApiSuccessResponse<typeof mockCostHistoryResponse>);
   });
 
   it('renders inventory header, tabs, and action buttons', async () => {
@@ -346,5 +416,39 @@ describe('InventoryIndex Component', () => {
         })
       );
     });
+  });
+
+  it('switches to Stock Valuation (AVCO) tab, displays summary metrics, and opens Cost Audit modal', async () => {
+    render(<InventoryIndex />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Standard Steel Rod 12mm')).toBeInTheDocument();
+    });
+
+    const valuationTabBtn = screen.getByRole('button', { name: /Stock Valuation \(AVCO\)/i });
+    fireEvent.click(valuationTabBtn);
+
+    await waitFor(() => {
+      expect(inventoryApi.getValuation).toHaveBeenCalled();
+    });
+
+    // Check KPI cards
+    expect(screen.getByText('Total Inventory Valuation')).toBeInTheDocument();
+    expect(screen.getByText('Continuous moving average asset value')).toBeInTheDocument();
+    expect(screen.getByText('Perpetual Moving Average')).toBeInTheDocument();
+
+    // Check table content
+    expect(screen.getByText('STL-ROD-12')).toBeInTheDocument();
+
+    // Click Cost Audit button
+    const costAuditBtn = screen.getByRole('button', { name: /Cost Audit/i });
+    fireEvent.click(costAuditBtn);
+
+    await waitFor(() => {
+      expect(inventoryApi.getCostHistory).toHaveBeenCalledWith('01HPROD0000000000000001');
+    });
+
+    expect(screen.getByText('Moving Weighted Average Cost Audit Trail')).toBeInTheDocument();
+    expect(screen.getByText('Initial PO receipt')).toBeInTheDocument();
   });
 });

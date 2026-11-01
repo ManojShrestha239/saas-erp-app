@@ -8,6 +8,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Modules\Inventory\Http\Controllers\CategoryController;
+use Modules\Inventory\Http\Controllers\InventoryValuationController;
 use Modules\Inventory\Http\Controllers\ProductController;
 use Modules\Inventory\Http\Controllers\ProductCsvImportController;
 use Modules\Inventory\Http\Controllers\StockAdjustmentController;
@@ -36,6 +37,10 @@ Route::middleware([
     Route::get('stock-levels/{warehouse}/{product}', [StockController::class, 'levelDetail'])->name('stock-levels.detail');
     Route::get('stock-movements', [StockController::class, 'movements'])->name('stock-movements.index');
     Route::post('stock-movements', [StockController::class, 'recordMovement'])->name('stock-movements.store');
+
+    Route::get('valuation', [InventoryValuationController::class, 'index'])->name('inventory.valuation.index');
+    Route::get('valuation/summary', [InventoryValuationController::class, 'summary'])->name('inventory.valuation.summary');
+    Route::get('valuation/{id}/history', [InventoryValuationController::class, 'history'])->name('inventory.valuation.history');
 
     Route::apiResource('adjustments', StockAdjustmentController::class)->only(['index', 'show', 'store']);
 });

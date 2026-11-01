@@ -24,14 +24,17 @@ import { CsvImportDialog } from '@/shared/components/CsvImportDialog';
 import { ProductFormModal } from '../components/ProductFormModal';
 import { StockAdjustmentModal } from '../components/StockAdjustmentModal';
 import { WarehouseFormModal } from '../components/WarehouseFormModal';
+import { CostHistoryModal } from '../components/CostHistoryModal';
 import { useCan } from '@/features/auth/hooks/useCan';
 import { inventoryApi } from '../api/inventoryApi';
 import type {
   CategoryItem,
   ProductItem,
+  ProductValuationItem,
   StockAdjustmentItem,
   StockLevelItem,
   UnitOfMeasureItem,
+  ValuationSummary,
   WarehouseItem,
 } from '../types/inventory.types';
 import {
@@ -39,6 +42,8 @@ import {
   Boxes,
   ClipboardList,
   Warehouse,
+  TrendingUp,
+  History,
   Plus,
   RefreshCw,
   Search,
@@ -53,7 +58,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 
-type TabKey = 'products' | 'balances' | 'adjustments' | 'warehouses';
+type TabKey = 'products' | 'balances' | 'valuation' | 'adjustments' | 'warehouses';
 
 function formatMoneyCents(cents: number): string {
   const amount = cents / 100;
@@ -165,6 +170,27 @@ export default function InventoryIndex() {
   const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
   const [editingWarehouse, setEditingWarehouse] = useState<WarehouseItem | null>(null);
   const [deletingWarehouse, setDeletingWarehouse] = useState<WarehouseItem | null>(null);
+
+  // ----------------------------------------------------
+  // Tab 5: Stock Valuation & AVCO Costing State
+  // ----------------------------------------------------
+  const [valuationItems, setValuationItems] = useState<ProductValuationItem[]>([]);
+  const [valuationLoading, setValuationLoading] = useState(false);
+  const [valuationTotal, setValuationTotal] = useState(0);
+  const [valuationSummary, setValuationSummary] = useState<ValuationSummary | null>(null);
+  const [valuationSearch, setValuationSearch] = useState('');
+  const [valuationCategoryFilter, setValuationCategoryFilter] = useState('');
+  const [valuationWarehouseFilter, setValuationWarehouseFilter] = useState('');
+  const [valuationInStockOnly, setValuationInStockOnly] = useState(false);
+  const [valuationPagination, setValuationPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 25,
+  });
+  const [valuationSorting, setValuationSorting] = useState<SortingState>([
+    { id: 'name', desc: false },
+  ]);
+  const [selectedCostHistoryProductId, setSelectedCostHistoryProductId] = useState<string | null>(null);
+  const [isCostHistoryOpen, setIsCostHistoryOpen] = useState(false);
 
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
@@ -305,6 +331,48 @@ export default function InventoryIndex() {
     }
   }, []);
 
+  // ----------------------------------------------------
+  // Fetch Valuation Tab
+  // ----------------------------------------------------
+  const fetchValuation = useCallback(async () => {
+    setValuationLoading(true);
+    try {
+      const sortField = valuationSorting[0]?.id || 'name';
+      const sortDir = valuationSorting[0]?.desc ? 'desc' : 'asc';
+
+      const res = await inventoryApi.getValuation({
+        search: valuationSearch.trim() || undefined,
+        category_id: valuationCategoryFilter || undefined,
+        warehouse_id: valuationWarehouseFilter || undefined,
+        in_stock_only: valuationInStockOnly || undefined,
+        page: valuationPagination.pageIndex + 1,
+        per_page: valuationPagination.pageSize,
+        sort_field: sortField,
+        sort_direction: sortDir,
+      });
+
+      setValuationItems(res.data.items);
+      setValuationSummary(res.data.summary);
+      if (res.meta && typeof res.meta.total === 'number') {
+        setValuationTotal(res.meta.total);
+      } else {
+        setValuationTotal(res.data.items.length);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to fetch inventory valuation';
+      setFeedback({ type: 'error', message: msg });
+    } finally {
+      setValuationLoading(false);
+    }
+  }, [
+    valuationSearch,
+    valuationCategoryFilter,
+    valuationWarehouseFilter,
+    valuationInStockOnly,
+    valuationPagination,
+    valuationSorting,
+  ]);
+
   // Trigger fetches on tab change or filter change
   useEffect(() => {
     if (activeTab === 'products') {
@@ -315,8 +383,10 @@ export default function InventoryIndex() {
       fetchAdjustments();
     } else if (activeTab === 'warehouses') {
       fetchWarehousesList();
+    } else if (activeTab === 'valuation') {
+      fetchValuation();
     }
-  }, [activeTab, fetchProducts, fetchStockLevels, fetchAdjustments, fetchWarehousesList]);
+  }, [activeTab, fetchProducts, fetchStockLevels, fetchAdjustments, fetchWarehousesList, fetchValuation]);
 
   // Delete Product Handler
   const handleDeleteProduct = async () => {
@@ -728,6 +798,124 @@ export default function InventoryIndex() {
     },
   ], []);
 
+  // ----------------------------------------------------
+  // Table Columns: Stock Valuation (AVCO)
+  // ----------------------------------------------------
+  const valuationColumns = useMemo<ColumnDef<ProductValuationItem>[]>(() => [
+    {
+      accessorKey: 'sku',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="SKU" />,
+      cell: ({ row }) => (
+        <span className="font-mono text-xs font-semibold text-primary px-2 py-0.5 rounded bg-primary/10">
+          {row.original.sku}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'name',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Product Name" />,
+      cell: ({ row }) => (
+        <div>
+          <span className="text-sm font-semibold text-foreground block truncate max-w-xs">
+            {row.original.name}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {row.original.category_name || 'Uncategorized'} · {row.original.unit_of_measure_name || 'Units'}
+          </span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'total_quantity_on_hand',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Total On Hand" className="text-right" />,
+      cell: ({ row }) => {
+        const qty = row.original.total_quantity_on_hand;
+        return (
+          <div className="text-right">
+            <span className="font-mono font-semibold text-sm tabular-nums block text-foreground">
+              {qty.toLocaleString()}
+            </span>
+            <Badge
+              variant={qty > 0 ? 'success' : 'destructive'}
+              className="text-[10px] mt-0.5 px-1.5 py-0"
+            >
+              {qty > 0 ? 'In Stock' : 'Out of Stock'}
+            </Badge>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'moving_average_cost_cents',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Moving Avg Cost" className="text-right" />,
+      cell: ({ row }) => (
+        <div className="text-right font-mono font-bold text-sm text-primary tabular-nums">
+          {formatMoneyCents(row.original.moving_average_cost_cents)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'selling_price_cents',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Selling Price" className="text-right" />,
+      cell: ({ row }) => (
+        <div className="text-right font-mono text-xs text-foreground tabular-nums">
+          {formatMoneyCents(row.original.selling_price_cents)}
+        </div>
+      ),
+    },
+    {
+      accessorKey: 'margin_percent',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Margin" className="text-right" />,
+      cell: ({ row }) => {
+        const margin = row.original.margin_percent;
+        if (margin === null) return <span className="text-right text-muted-foreground block">—</span>;
+        const isPositive = margin >= 0;
+        return (
+          <div className="text-right font-mono text-xs font-semibold tabular-nums">
+            <span
+              className={`px-1.5 py-0.5 rounded text-[11px] ${
+                isPositive
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-destructive/10 text-destructive'
+              }`}
+            >
+              {isPositive ? `+${margin}%` : `${margin}%`}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'total_valuation_cents',
+      header: ({ column }) => <DataTableColumnHeader column={column} title="Stock Valuation" className="text-right" />,
+      cell: ({ row }) => (
+        <div className="text-right font-mono font-bold text-sm text-foreground tabular-nums">
+          {formatMoneyCents(row.original.total_valuation_cents)}
+        </div>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: ({ row }) => (
+        <div className="text-right">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSelectedCostHistoryProductId(row.original.product_id);
+              setIsCostHistoryOpen(true);
+            }}
+            className="text-xs h-8 gap-1.5"
+          >
+            <History className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>Cost Audit</span>
+          </Button>
+        </div>
+      ),
+    },
+  ], []);
+
   return (
     <AppLayout activeNav="inventory" title="Inventory Management">
       <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
@@ -816,6 +1004,7 @@ export default function InventoryIndex() {
           {[
             { id: 'products', label: 'Products Catalog', icon: Package, count: productsTotal },
             { id: 'balances', label: 'Stock Balances', icon: Boxes, count: stockTotal },
+            { id: 'valuation', label: 'Stock Valuation (AVCO)', icon: TrendingUp, count: valuationTotal },
             { id: 'adjustments', label: 'Stock Adjustments', icon: ClipboardList, count: adjustmentsTotal },
             { id: 'warehouses', label: 'Warehouses', icon: Warehouse, count: warehouses.length },
           ].map((tab) => {
@@ -1000,6 +1189,164 @@ export default function InventoryIndex() {
                   ? 'No matching stock records found for current filters.'
                   : 'Record stock adjustments or purchase orders to populate inventory levels.'
               }
+            />
+          </div>
+        )}
+
+        {/* TAB 5: Stock Valuation & AVCO Costing */}
+        {activeTab === 'valuation' && (
+          <div className="space-y-4">
+            {/* KPI Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Total Inventory Valuation</span>
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </div>
+                <div className="mt-2 text-2xl font-bold tracking-tight text-foreground font-mono tabular-nums">
+                  {formatMoneyCents(valuationSummary?.total_valuation_cents || 0)}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Continuous moving average asset value
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Total Units In Stock</span>
+                  <Boxes className="h-4 w-4 text-primary" />
+                </div>
+                <div className="mt-2 text-2xl font-bold tracking-tight text-foreground font-mono tabular-nums">
+                  {(valuationSummary?.total_units_on_hand || 0).toLocaleString()}
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Physical units across depots
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Valued Products</span>
+                  <Package className="h-4 w-4 text-primary" />
+                </div>
+                <div className="mt-2 text-2xl font-bold tracking-tight text-foreground font-mono tabular-nums">
+                  {valuationSummary?.valued_products_count || 0}{' '}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    / {valuationSummary?.total_products_count || 0} active
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Items currently carrying positive stock
+                </p>
+              </div>
+
+              <div className="rounded-lg border bg-card p-4 text-card-foreground shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Costing Method</span>
+                  <Badge variant="outline" className="text-[10px] font-mono">
+                    AVCO
+                  </Badge>
+                </div>
+                <div className="mt-2 text-sm font-semibold text-foreground">
+                  Perpetual Moving Average
+                </div>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Real-time updates on receipt & COGS release
+                </p>
+              </div>
+            </div>
+
+            {/* Filter toolbar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  aria-label="Filter valuation by category"
+                  className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground"
+                  value={valuationCategoryFilter}
+                  onChange={(e) => {
+                    setValuationCategoryFilter(e.target.value);
+                    setValuationPagination((p) => ({ ...p, pageIndex: 0 }));
+                  }}
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  aria-label="Filter valuation by warehouse"
+                  className="h-9 px-2.5 rounded-md border text-xs bg-background text-foreground"
+                  value={valuationWarehouseFilter}
+                  onChange={(e) => {
+                    setValuationWarehouseFilter(e.target.value);
+                    setValuationPagination((p) => ({ ...p, pageIndex: 0 }));
+                  }}
+                >
+                  <option value="">All Warehouses</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.code})
+                    </option>
+                  ))}
+                </select>
+
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none px-2 py-1 rounded border border-border bg-card">
+                  <input
+                    type="checkbox"
+                    checked={valuationInStockOnly}
+                    onChange={(e) => {
+                      setValuationInStockOnly(e.target.checked);
+                      setValuationPagination((p) => ({ ...p, pageIndex: 0 }));
+                    }}
+                    className="rounded border-input text-primary focus:ring-primary h-3.5 w-3.5"
+                  />
+                  <span>In Stock Only</span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search SKU, product name..."
+                    value={valuationSearch}
+                    onChange={(e) => {
+                      setValuationSearch(e.target.value);
+                      setValuationPagination((p) => ({ ...p, pageIndex: 0 }));
+                    }}
+                    className="pl-8 h-9 text-xs"
+                  />
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={fetchValuation}
+                  disabled={valuationLoading}
+                  className="h-9 w-9 p-0"
+                  title="Refresh valuation data"
+                >
+                  <RefreshCw className={`h-4 w-4 ${valuationLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              </div>
+            </div>
+
+            <DataTable
+              columns={valuationColumns}
+              data={valuationItems}
+              isLoading={valuationLoading}
+              serverSide={{
+                totalRows: valuationTotal,
+                pagination: valuationPagination,
+                onPaginationChange: setValuationPagination,
+                sorting: valuationSorting,
+                onSortingChange: setValuationSorting,
+              }}
+              emptyTitle="No valuation records found"
+              emptyDescription="No inventory products matched your filter criteria."
             />
           </div>
         )}
@@ -1403,6 +1750,16 @@ export default function InventoryIndex() {
             </div>
           </div>
         </Dialog>
+
+        {/* Moving Average Cost History Modal */}
+        <CostHistoryModal
+          productId={selectedCostHistoryProductId}
+          isOpen={isCostHistoryOpen}
+          onClose={() => {
+            setIsCostHistoryOpen(false);
+            setSelectedCostHistoryProductId(null);
+          }}
+        />
       </div>
     </AppLayout>
   );

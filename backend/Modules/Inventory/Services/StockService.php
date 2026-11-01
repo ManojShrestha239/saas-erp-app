@@ -7,6 +7,7 @@ namespace Modules\Inventory\Services;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Inventory\DTOs\RecordStockMovementData;
+use Modules\Inventory\Enums\StockMovementType;
 use Modules\Inventory\Events\LowStockDetected;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\StockLevel;
@@ -19,6 +20,7 @@ final class StockService
 {
     public function __construct(
         private readonly DatabaseManager $db,
+        private readonly InventoryCostingService $costingService,
     ) {}
 
     public function recordMovement(RecordStockMovementData $data): StockMovement
@@ -54,10 +56,15 @@ final class StockService
                 ]
             );
 
-            // Pessimistic lock on the stock level row
+            // Pessimistic lock on the stock level row and product row
             /** @var StockLevel $stockLevel */
             $stockLevel = StockLevel::where('warehouse_id', $data->warehouseId)
                 ->where('product_id', $data->productId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            /** @var Product $lockedProduct */
+            $lockedProduct = Product::where('id', $data->productId)
                 ->lockForUpdate()
                 ->firstOrFail();
 
@@ -66,9 +73,34 @@ final class StockService
 
             if ($newOnHand < 0 && ! $this->allowsNegativeStock()) {
                 throw ApiException::badRequest(
-                    "Insufficient stock for product '{$product->sku}' in warehouse '{$warehouse->name}'. On hand: {$stockLevel->quantity_on_hand}, Requested: {$signedQuantity}.",
+                    "Insufficient stock for product '{$lockedProduct->sku}' in warehouse '{$warehouse->name}'. On hand: {$stockLevel->quantity_on_hand}, Requested: {$signedQuantity}.",
                     'INSUFFICIENT_STOCK'
                 );
+            }
+
+            // Current total on-hand stock across all warehouses before this movement
+            $currentTotalOnHand = (int) StockLevel::where('product_id', $lockedProduct->id)->sum('quantity_on_hand');
+
+            // Moving average cost calculation on additions vs issues
+            $movementUnitCost = $data->unitCostCents > 0 ? $data->unitCostCents : $lockedProduct->cost_price_cents;
+
+            if ($data->type === StockMovementType::PurchaseReceipt || ($data->type === StockMovementType::AdjustmentIn && $data->unitCostCents > 0)) {
+                $newAvgCost = $this->costingService->calculateMovingWeightedAverage(
+                    currentQuantity: $currentTotalOnHand,
+                    currentUnitCostCents: $lockedProduct->cost_price_cents,
+                    incomingQuantity: abs($signedQuantity),
+                    incomingUnitCostCents: $movementUnitCost,
+                );
+                $lockedProduct->cost_price_cents = $newAvgCost;
+                $lockedProduct->save();
+            } elseif ($data->type->isAddition() && $currentTotalOnHand <= 0 && $movementUnitCost > 0) {
+                $lockedProduct->cost_price_cents = $movementUnitCost;
+                $lockedProduct->save();
+            } else {
+                // Outbound movements default to current moving average cost
+                if ($data->unitCostCents <= 0) {
+                    $movementUnitCost = $lockedProduct->cost_price_cents;
+                }
             }
 
             // Update cached stock level
@@ -81,7 +113,7 @@ final class StockService
                 'product_id' => $data->productId,
                 'type' => $data->type,
                 'quantity' => $signedQuantity,
-                'unit_cost_cents' => $data->unitCostCents > 0 ? $data->unitCostCents : $product->cost_price_cents,
+                'unit_cost_cents' => $movementUnitCost,
                 'source_type' => $data->sourceType,
                 'source_id' => $data->sourceId,
                 'user_id' => $data->userId,

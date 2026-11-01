@@ -16,6 +16,10 @@ import type {
   StockLevelItem,
   UnitOfMeasureFormData,
   UnitOfMeasureItem,
+  ValuationFilters,
+  ProductValuationItem,
+  ValuationSummary,
+  ProductCostHistoryResponse,
   WarehouseFormData,
   WarehouseItem,
 } from '../types/inventory.types';
@@ -139,5 +143,20 @@ export const inventoryApi = {
 
   getProductTemplateUrl: (): string => {
     return '/api/v1/inventory/products/import/template';
+  },
+
+  // Stock Valuation & Costing
+  getValuation: (
+    params?: ValuationFilters
+  ): Promise<ApiSuccessResponse<{ items: ProductValuationItem[]; summary: ValuationSummary }>> => {
+    return apiClient.get<{ items: ProductValuationItem[]; summary: ValuationSummary }>('/inventory/valuation', {
+      params: params as Record<string, string | number | boolean | undefined | null>,
+    });
+  },
+
+  getCostHistory: (
+    productId: string
+  ): Promise<ApiSuccessResponse<ProductCostHistoryResponse>> => {
+    return apiClient.get<ProductCostHistoryResponse>(`/inventory/valuation/${productId}/history`);
   },
 };
