@@ -7,18 +7,21 @@ namespace Modules\Accounting\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Accounting\Models\JournalEntry;
 
+/**
+ * @mixin JournalEntry
+ */
 final class JournalEntryResource extends JsonResource
 {
     /**
-     * @param  JournalEntry  $this
+     * @return array<string, mixed>
      */
     public function toArray($request): array
     {
         return [
             'id' => $this->id,
             'entry_number' => $this->entry_number,
-            'entry_date' => $this->entry_date?->toDateString(),
-            'posting_date' => $this->posting_date?->toIso8601String(),
+            'entry_date' => $this->entry_date->toDateString(),
+            'posting_date' => $this->posting_date->toIso8601String(),
             'status' => $this->status->value,
             'description' => $this->description,
             'source_type' => $this->source_type,

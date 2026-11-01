@@ -77,7 +77,7 @@ final class JournalEntry extends Model
 
     protected static function booted(): void
     {
-        static::updating(function (self $model): void {
+        self::updating(function (self $model): void {
             $dirtyKeys = array_keys($model->getDirty());
             $allowedKeys = ['status', 'reversed_by_id', 'reversal_reason', 'updated_at'];
 
@@ -87,7 +87,7 @@ final class JournalEntry extends Model
             }
         });
 
-        static::deleting(function (): void {
+        self::deleting(function (): void {
             throw new ImmutableJournalEntryException('Posted journal entries are immutable and cannot be deleted.');
         });
     }

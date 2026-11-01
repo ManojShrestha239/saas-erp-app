@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Modules\Accounting\Http\Controllers;
 
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 use Modules\Accounting\DTOs\JournalEntryLineData;
 use Modules\Accounting\DTOs\PostJournalEntryData;
@@ -26,7 +28,7 @@ final class JournalEntryController
     /**
      * List journal entries with optional filters.
      */
-    public function index(Request $request): \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
         Gate::authorize('viewAny', JournalEntry::class);
 
@@ -55,11 +57,13 @@ final class JournalEntryController
     /**
      * Store a manual journal entry.
      */
-    public function store(PostManualJournalRequest $request): \Illuminate\Http\JsonResponse
+    public function store(PostManualJournalRequest $request): JsonResponse
     {
         Gate::authorize('create', JournalEntry::class);
 
+        /** @var array{entry_date: string, description?: string|null, source_type?: string|null, source_id?: string|null, currency: string, user_id?: string|null, lines: list<array{account_id: string, debit_cents?: int|null, credit_cents?: int|null, description?: string|null}>} $data */
         $data = $request->validated();
+        /** @var list<JournalEntryLineData> $lines */
         $lines = array_map(
             fn (array $line): JournalEntryLineData => JournalEntryLineData::fromArray($line),
             $data['lines']
@@ -83,7 +87,7 @@ final class JournalEntryController
     /**
      * Reverse an existing journal entry.
      */
-    public function reverse(string $id, ReverseJournalEntryRequest $request): \Illuminate\Http\JsonResponse
+    public function reverse(string $id, ReverseJournalEntryRequest $request): JsonResponse
     {
         $entry = $this->journalEntryService->findById($id);
         if ($entry === null) {
@@ -92,6 +96,7 @@ final class JournalEntryController
 
         Gate::authorize('reverse', $entry);
 
+        /** @var array{reason: string, user_id?: string|null} $validated */
         $validated = $request->validated();
         $reversalEntry = $this->journalEntryService->reverse(
             $entry,

@@ -6,7 +6,6 @@ namespace Modules\Accounting\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Shared\Exceptions\ApiException;
-use Shared\Utils\HttpStatus;
 
 final class PostManualJournalRequest extends FormRequest
 {
@@ -16,6 +15,9 @@ final class PostManualJournalRequest extends FormRequest
         return true;
     }
 
+    /**
+     * @return array<string, list<string>>
+     */
     public function rules(): array
     {
         return [

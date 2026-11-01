@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Modules\Accounting\Models\Account;
+use Illuminate\Support\Str;
 use Modules\Accounting\Enums\AccountType;
 use Modules\Accounting\Enums\SystemAccount;
+use Modules\Accounting\Models\Account;
 
 /** @extends Factory<Account> */
 final class AccountFactory extends Factory
@@ -21,7 +22,7 @@ final class AccountFactory extends Factory
         $systemName = $isSystem ? $this->faker->unique()->randomElement(SystemAccount::cases())->name : null;
 
         return [
-            'id' => \Illuminate\Support\Str::ulid(),
+            'id' => Str::ulid(),
             'code' => $this->faker->unique()->bothify('###???'),
             'name' => $this->faker->words(3, true),
             'type' => $type,

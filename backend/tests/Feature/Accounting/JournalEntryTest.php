@@ -10,7 +10,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Modules\Accounting\Events\JournalEntryPosted;
 use Modules\Accounting\Events\JournalEntryReversed;
 use Modules\Accounting\Models\Account;
 use Modules\Auth\Enums\TenantRole;
@@ -61,7 +60,7 @@ function loginAsJeTenant(mixed $testCase, string $host, string $email, string $p
     $testCase->flushSession();
 
     $response = $testCase->postJson("http://{$host}/api/v1/auth/login", [
-        'email'    => $email,
+        'email' => $email,
         'password' => $password,
     ]);
 
@@ -90,8 +89,8 @@ beforeEach(function (): void {
 
     Artisan::call('migrate', [
         '--database' => 'central',
-        '--path'     => 'database/migrations/central',
-        '--force'    => true,
+        '--path' => 'database/migrations/central',
+        '--force' => true,
     ]);
 
     dropJeApiTestTenantDatabase('tenant_je_api_alpha');
@@ -103,15 +102,15 @@ beforeEach(function (): void {
     // --- Alpha Tenant ---
     $alphaId = (string) Str::ulid();
     $this->alphaTenant = Tenant::on('central')->create([
-        'id'            => $alphaId,
-        'name'          => 'JE Alpha Corp',
-        'slug'          => 'jealpha',
+        'id' => $alphaId,
+        'name' => 'JE Alpha Corp',
+        'slug' => 'jealpha',
         'database_name' => 'tenant_je_api_alpha',
-        'status'        => 'provisioning',
+        'status' => 'provisioning',
     ]);
     Domain::on('central')->create([
         'tenant_id' => $alphaId,
-        'host'      => 'jealpha.nexuserp.test',
+        'host' => 'jealpha.nexuserp.test',
     ]);
     ProvisionTenantDatabase::dispatchSync(
         tenantId: $alphaId,
@@ -122,15 +121,15 @@ beforeEach(function (): void {
     // --- Beta Tenant ---
     $betaId = (string) Str::ulid();
     $this->betaTenant = Tenant::on('central')->create([
-        'id'            => $betaId,
-        'name'          => 'JE Beta Corp',
-        'slug'          => 'jebeta',
+        'id' => $betaId,
+        'name' => 'JE Beta Corp',
+        'slug' => 'jebeta',
         'database_name' => 'tenant_je_api_beta',
-        'status'        => 'provisioning',
+        'status' => 'provisioning',
     ]);
     Domain::on('central')->create([
         'tenant_id' => $betaId,
-        'host'      => 'jebeta.nexuserp.test',
+        'host' => 'jebeta.nexuserp.test',
     ]);
     ProvisionTenantDatabase::dispatchSync(
         tenantId: $betaId,
@@ -149,22 +148,22 @@ beforeEach(function (): void {
 
     // Accountant (has accounting.manage + reports.financial)
     $this->accountantUser = TenantUser::create([
-        'id'                => (string) Str::ulid(),
-        'name'              => 'Alpha Accountant',
-        'email'             => 'accountant@jealpha.nexuserp.test',
-        'password'          => Hash::make('Password123!'),
-        'status'            => 'active',
+        'id' => (string) Str::ulid(),
+        'name' => 'Alpha Accountant',
+        'email' => 'accountant@jealpha.nexuserp.test',
+        'password' => Hash::make('Password123!'),
+        'status' => 'active',
         'email_verified_at' => now(),
     ]);
     $this->accountantUser->syncRoles([TenantRole::Accountant->value]);
 
     // Warehouse manager (no accounting.manage)
     $this->warehouseUser = TenantUser::create([
-        'id'                => (string) Str::ulid(),
-        'name'              => 'Alpha Warehouse',
-        'email'             => 'warehouse@jealpha.nexuserp.test',
-        'password'          => Hash::make('Password123!'),
-        'status'            => 'active',
+        'id' => (string) Str::ulid(),
+        'name' => 'Alpha Warehouse',
+        'email' => 'warehouse@jealpha.nexuserp.test',
+        'password' => Hash::make('Password123!'),
+        'status' => 'active',
         'email_verified_at' => now(),
     ]);
     $this->warehouseUser->syncRoles([TenantRole::WarehouseManager->value]);
@@ -176,7 +175,7 @@ beforeEach(function (): void {
         databaseName: 'tenant_je_api_beta',
     ));
     TenantUser::where('email', 'owner@jebeta.nexuserp.test')->update([
-        'password'          => Hash::make('Password123!'),
+        'password' => Hash::make('Password123!'),
         'email_verified_at' => now(),
     ]);
 
@@ -211,7 +210,7 @@ function getAlphaAccountPair(mixed $testCase, string $sessionCookie): array
         ->getJson('http://jealpha.nexuserp.test/api/v1/accounting/accounts?search=4000');
     $revenueResponse->assertOk();
 
-    $debitId  = $cashResponse->json('data.0.id');
+    $debitId = $cashResponse->json('data.0.id');
     $creditId = $revenueResponse->json('data.0.id');
 
     expect($debitId)->not->toBeNull('Cash account (1100) must exist after provisioning');
@@ -232,11 +231,11 @@ test('accountant can post a balanced journal entry and receives 201 with entry_n
 
     $response = $this->withCookie(config('session.cookie'), $cookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
-            'entry_date'  => '2026-10-31',
+            'entry_date' => '2026-10-31',
             'description' => 'Cash sale revenue recognition',
-            'currency'    => 'USD',
-            'lines'       => [
-                ['account_id' => $debitId,  'debit_cents'  => 100_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 100_00],
                 ['account_id' => $creditId, 'credit_cents' => 100_00],
             ],
         ]);
@@ -268,9 +267,9 @@ test('posting an imbalanced journal entry is rejected with 422 IMBALANCED_JOURNA
     $response = $this->withCookie(config('session.cookie'), $cookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
             'entry_date' => '2026-10-31',
-            'currency'   => 'USD',
-            'lines'      => [
-                ['account_id' => $debitId,  'debit_cents'  => 150_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 150_00],
                 ['account_id' => $creditId, 'credit_cents' => 100_00], // 50_00 short
             ],
         ]);
@@ -303,9 +302,9 @@ test('posting to an inactive account is rejected with 400 ACCOUNT_INACTIVE', fun
     $response = $this->withCookie(config('session.cookie'), $cookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
             'entry_date' => '2026-10-31',
-            'currency'   => 'USD',
-            'lines'      => [
-                ['account_id' => $debitId,  'debit_cents'  => 50_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 50_00],
                 ['account_id' => $creditId, 'credit_cents' => 50_00],
             ],
         ]);
@@ -329,11 +328,11 @@ test('accountant can reverse a posted journal entry and the reversal has swapped
     // 1. Post original entry
     $postResponse = $this->withCookie(config('session.cookie'), $cookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
-            'entry_date'  => '2026-10-31',
+            'entry_date' => '2026-10-31',
             'description' => 'Original entry to reverse',
-            'currency'    => 'USD',
-            'lines'       => [
-                ['account_id' => $debitId,  'debit_cents'  => 75_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 75_00],
                 ['account_id' => $creditId, 'credit_cents' => 75_00],
             ],
         ]);
@@ -362,7 +361,7 @@ test('accountant can reverse a posted journal entry and the reversal has swapped
     $reversalLines = $reverseResponse->json('data.lines');
     expect($reversalLines)->toHaveCount(2);
 
-    $debitLine  = collect($reversalLines)->firstWhere('account_id', $debitId);
+    $debitLine = collect($reversalLines)->firstWhere('account_id', $debitId);
     $creditLine = collect($reversalLines)->firstWhere('account_id', $creditId);
 
     // Original had debit on $debitId → reversal has credit on $debitId
@@ -390,9 +389,9 @@ test('reversing an already-reversed journal entry is rejected with 400 ALREADY_R
     $postResponse = $this->withCookie(config('session.cookie'), $cookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
             'entry_date' => '2026-10-31',
-            'currency'   => 'USD',
-            'lines'      => [
-                ['account_id' => $debitId,  'debit_cents'  => 20_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 20_00],
                 ['account_id' => $creditId, 'credit_cents' => 20_00],
             ],
         ]);
@@ -438,9 +437,9 @@ test('warehouse manager is denied access to journal entry endpoints with 403', f
     $postResponse = $this->withCookie(config('session.cookie'), $warehouseCookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
             'entry_date' => '2026-10-31',
-            'currency'   => 'USD',
-            'lines'      => [
-                ['account_id' => $debitId,  'debit_cents'  => 10_00],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 10_00],
                 ['account_id' => $creditId, 'credit_cents' => 10_00],
             ],
         ]);
@@ -460,11 +459,11 @@ test('journal entries in Tenant Alpha are not visible to Tenant Beta', function 
     // Post an entry as Alpha
     $postResponse = $this->withCookie(config('session.cookie'), $alphaCookie)
         ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
-            'entry_date'  => '2026-10-31',
+            'entry_date' => '2026-10-31',
             'description' => 'Alpha-only confidential entry',
-            'currency'    => 'USD',
-            'lines'       => [
-                ['account_id' => $debitId,  'debit_cents'  => 99_99],
+            'currency' => 'USD',
+            'lines' => [
+                ['account_id' => $debitId,  'debit_cents' => 99_99],
                 ['account_id' => $creditId, 'credit_cents' => 99_99],
             ],
         ]);
@@ -499,9 +498,9 @@ test('listing journal entries returns correct pagination meta', function (): voi
         $this->withCookie(config('session.cookie'), $cookie)
             ->postJson('http://jealpha.nexuserp.test/api/v1/accounting/journal-entries', [
                 'entry_date' => '2026-10-31',
-                'currency'   => 'USD',
-                'lines'      => [
-                    ['account_id' => $debitId,  'debit_cents'  => $i * 100],
+                'currency' => 'USD',
+                'lines' => [
+                    ['account_id' => $debitId,  'debit_cents' => $i * 100],
                     ['account_id' => $creditId, 'credit_cents' => $i * 100],
                 ],
             ])->assertStatus(201);

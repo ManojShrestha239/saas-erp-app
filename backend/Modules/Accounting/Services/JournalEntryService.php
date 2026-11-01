@@ -6,6 +6,7 @@ namespace Modules\Accounting\Services;
 
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Accounting\DTOs\JournalEntryLineData;
 use Modules\Accounting\DTOs\PostJournalEntryData;
@@ -43,7 +44,7 @@ final class JournalEntryService
             $data->lines,
         )));
 
-        /** @var \Illuminate\Database\Eloquent\Collection<int, Account> $accounts */
+        /** @var Collection<int, Account> $accounts */
         $accounts = Account::whereIn('id', $accountIds)->get();
 
         if ($accounts->count() !== count($accountIds)) {
@@ -114,7 +115,7 @@ final class JournalEntryService
                 ]);
             }
 
-            $tenantId = TenantContext::get()?->id;
+            $tenantId = TenantContext::get() !== null ? (string) TenantContext::get()->id : null;
             JournalEntryPosted::dispatch($journalEntry, $tenantId, $data->userId);
 
             return $journalEntry->load(['lines.account']);
@@ -165,7 +166,7 @@ final class JournalEntryService
                 );
             }
 
-            /** @var \Illuminate\Database\Eloquent\Collection<int, JournalEntryLine> $originalLines */
+            /** @var Collection<int, JournalEntryLine> $originalLines */
             $originalLines = JournalEntryLine::where('journal_entry_id', $original->id)
                 ->orderBy('line_number')
                 ->get();
@@ -213,7 +214,7 @@ final class JournalEntryService
                 'reversal_reason' => $trimmedReason,
             ]);
 
-            $tenantId = TenantContext::get()?->id;
+            $tenantId = TenantContext::get() !== null ? (string) TenantContext::get()->id : null;
             JournalEntryReversed::dispatch($original, $reversalEntry, $trimmedReason, $tenantId, $userId);
 
             return $reversalEntry->load(['lines.account', 'reversalOf']);
@@ -233,7 +234,7 @@ final class JournalEntryService
      *     search?: string|null,
      *     per_page?: int|null
      * }  $filters
-     * @return LengthAwarePaginator<JournalEntry>
+     * @return LengthAwarePaginator<int, JournalEntry>
      */
     public function list(array $filters = []): LengthAwarePaginator
     {
@@ -278,7 +279,7 @@ final class JournalEntryService
 
         $perPage = min(max((int) ($filters['per_page'] ?? 25), 1), 100);
 
-        /** @var LengthAwarePaginator<JournalEntry> */
+        /** @var LengthAwarePaginator<int, JournalEntry> */
         return $query->paginate($perPage);
     }
 

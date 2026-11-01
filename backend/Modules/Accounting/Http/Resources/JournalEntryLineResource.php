@@ -7,10 +7,13 @@ namespace Modules\Accounting\Http\Resources;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Accounting\Models\JournalEntryLine;
 
+/**
+ * @mixin JournalEntryLine
+ */
 final class JournalEntryLineResource extends JsonResource
 {
     /**
-     * @param  JournalEntryLine  $this
+     * @return array<string, mixed>
      */
     public function toArray($request): array
     {
