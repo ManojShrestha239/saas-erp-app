@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (2 of 7 items completed) · Active Task: General Ledger posting engine (Completed)
-- **Last Completed Task:** `feat/general-ledger-posting`: Implemented General Ledger double-entry posting engine in `Modules/Accounting` (`journal_entries` and `journal_entry_lines` tables in tenant DB with ULID PKs, gap-free numbering `JRN-YYYY-000000`, integer cents `*_cents` BIGINT), `JournalEntry` and `JournalEntryLine` models with `UsesTenantConnection` and immutability guard, `JournalEntryStatus` enum, `PostJournalEntryData` and `JournalEntryLineData` DTOs, `JournalEntryService` (balanced-or-reject validation, inactive account rejection, atomic posting under `DB::connection('tenant')->transaction(..., 3)`, source linkage, reversal engine creating mirror inverse lines and linking original entry), `JournalEntryPosted` and `JournalEntryReversed` events (`ShouldDispatchAfterCommit`), `JournalEntryController`, Form Requests, API Resources, and `JournalEntryPolicy`. 100% CI clean across Pint, Larastan Level 8 (0 errors), Pest (306 backend tests passing with 2,657 assertions), Vitest (68 frontend tests passing), ESLint, and TypeScript.
-- **Current Focus:** Next task in Phase 5: Wire Phase 3/4 documents to real journal postings (`feat/wire-documents-to-ledger`).
-- **Working branch:** `feat/general-ledger-posting`
+- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (3 of 7 items completed) · Active Task: Wire Phase 3/4 documents to real journal postings (Completed)
+- **Last Completed Task:** `feat/wire-documents-to-ledger`: Created `DocumentPostingService` in `Modules/Accounting/Services` bound as singleton in `AccountingServiceProvider`. Wired Sales Invoices (AR, Sales Revenue, Output VAT, COGS, and Inventory Relief) and atomic voiding reversal; wired Supplier Bills (Inventory Asset, Input VAT, Accounts Payable); wired Payments (Inbound Customer Receipts: Bank debit, AR credit; Outbound Supplier Payments: AP debit, Bank credit) both on immediate posting and draft-then-post; wired Stock Adjustments (surplus gain: Inventory Asset debit, Inventory Adjustment credit; shrinkage loss: Inventory Adjustment debit, Inventory Asset credit; 0 delta safely bypassed). All balances computed in integer cents (`*_cents` BIGINT). Module boundary isolation fully preserved (Arch tests clean: other modules inject `DocumentPostingService` without referencing Accounting models). 100% CI gate clean across Pint (394 files clean), Larastan Level 8 (0 errors), Pest (312 tests passing with 2,755 assertions), Vitest (68 frontend tests passing across 16 test files), ESLint, and TypeScript.
+- **Current Focus:** Next task in Phase 5: Inventory costing (weighted average unless Open Questions say otherwise) (`feat/inventory-costing-weighted-average`).
+- **Working branch:** `feat/wire-documents-to-ledger`
 
 ## Architectural Decisions (Decision Log)
 
@@ -59,6 +59,7 @@
 | 37  | Purchasing & Procurement Frontend UI (`feat/purchasing-ui`): Multi-tab management interface on `/purchasing` covering Purchase Orders, Goods Receipts with direct inventory increments, and Supplier Bills. Integrated TanStack DataTable, `PurchaseOrderFormModal` with dynamic line pricing and 13% VAT, `GoodsReceiptModal` enforcing remaining order boundaries with atomic inventory increments via `StockService`, `SupplierBillFormModal` with optional PO linkage, and inspection modals with PDF printing and AP ledger posting. | End-to-end procurement workflow, physical inventory synchronization, real-time AP liability tracking, and zero floating-point math. |
 | 38  | Hierarchical Chart of Accounts & System Account Protection (`feat/chart-of-accounts`): `accounts` table in tenant DB with ULID PK, code (unique per tenant), hierarchical `parent_id` (foreign key with `onDelete('restrict')`), `type` enum (`asset`, `liability`, `equity`, `income`, `expense`), and `is_system` / `system_name` enum for critical control accounts. Enforces same type between parent and child, prevents cyclic ancestry and self-parenting, prevents deleting accounts with children or deleting/modifying system accounts. Standard CoA seeded automatically during tenant provisioning. | Foundation for Phase 5 General Ledger double-entry engine; provides bulletproof account tree structure, prevents accidental deletion of system control accounts (AR, AP, VAT, COGS, Inventory Asset), and ensures zero cross-tenant leakage. |
 | 39  | General Ledger Double-Entry Posting Engine in `Modules\Accounting` (`feat/general-ledger-posting`): `journal_entries` and `journal_entry_lines` tables in tenant DB with ULID PKs; gap-free per-tenant numbering (`JRN-YYYY-000000`); integer minor units (`*_cents` BIGINT); strict debit-credit balance validation (`ImbalancedJournalEntryException`); active account validation; atomic persistence under `DB::connection('tenant')->transaction(..., 3)`; immutability enforced at model level (mutations/deletions blocked except status/reversal links); reversal-only corrections creating mirror inverse lines linked via `reversal_of_id`/`reversed_by_id`; decoupled post-commit domain events `JournalEntryPosted` and `JournalEntryReversed`. | Guarantees mathematically balanced double-entry ledger, prevents tampering or silent edits, preserves auditability and compliance, and provides the foundation for wiring all sales, purchasing, payment, and inventory transactions into the financial ledger. |
+| 40  | Document-to-Ledger Financial Posting Service (`feat/wire-documents-to-ledger`): `DocumentPostingService` in `Modules\Accounting\Services` acts as the domain facade for commercial and operational modules (Sales Invoices & Voiding, Supplier Bills, Payments, Stock Adjustments). Generates balanced double-entry journal entries using integer cents (`*_cents` BIGINT). Strict module boundary isolation preserved: other modules inject the public service without importing `Modules\Accounting\Models\*`. | Enforces mathematical zero-sum balance, links every ledger entry to its underlying source document, automates COGS and VAT recognition, and honors strict ArchTest module boundaries. |
 
 ## Conventions Locked In
 
@@ -79,37 +80,24 @@
 
 ## Next Steps
 
-1. Wire Phase 3/4 business events (Sales Invoices, Supplier Bills, Customer Receipts, Supplier Payments, Stock Adjustments) to real journal entries (AR, AP, Revenue, Input/Output VAT, Inventory Asset, COGS) (`feat/wire-documents-to-ledger`).
-2. Inventory costing (weighted average unless Open Questions say otherwise).
+1. Inventory costing (weighted average unless Open Questions say otherwise) (`feat/inventory-costing-weighted-average`).
+2. Credit Notes and Debit Notes (stock + ledger + balance effects).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Accounting/Database/Migrations/2026_10_31_000002_create_accounting_journal_entries_table.php`
-- `backend/Modules/Accounting/DTOs/JournalEntryLineData.php`
-- `backend/Modules/Accounting/DTOs/PostJournalEntryData.php`
-- `backend/Modules/Accounting/Enums/JournalEntryStatus.php`
-- `backend/Modules/Accounting/Events/JournalEntryPosted.php`
-- `backend/Modules/Accounting/Events/JournalEntryReversed.php`
-- `backend/Modules/Accounting/Exceptions/ImbalancedJournalEntryException.php`
-- `backend/Modules/Accounting/Exceptions/ImmutableJournalEntryException.php`
-- `backend/Modules/Accounting/Http/Controllers/JournalEntryController.php`
-- `backend/Modules/Accounting/Http/Requests/PostManualJournalRequest.php`
-- `backend/Modules/Accounting/Http/Requests/ReverseJournalEntryRequest.php`
-- `backend/Modules/Accounting/Http/Resources/JournalEntryLineResource.php`
-- `backend/Modules/Accounting/Http/Resources/JournalEntryResource.php`
-- `backend/Modules/Accounting/Models/JournalEntry.php`
-- `backend/Modules/Accounting/Models/JournalEntryLine.php`
-- `backend/Modules/Accounting/Policies/JournalEntryPolicy.php`
+- `backend/Modules/Accounting/Services/DocumentPostingService.php`
 - `backend/Modules/Accounting/Providers/AccountingServiceProvider.php`
-- `backend/Modules/Accounting/Routes/api.php`
-- `backend/Modules/Accounting/Services/JournalEntryService.php`
-- `backend/database/factories/AccountFactory.php`
-- `backend/tests/Feature/Accounting/JournalEntryTest.php`
+- `backend/Modules/Sales/Services/SalesInvoiceService.php`
+- `backend/Modules/Purchasing/Services/SupplierBillService.php`
+- `backend/Modules/Payments/Services/PaymentService.php`
+- `backend/Modules/Inventory/Services/StockAdjustmentService.php`
+- `backend/tests/Feature/Accounting/DocumentLedgerPostingTest.php`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
 
+- `2026-11-01`: `feat/wire-documents-to-ledger`: Created `DocumentPostingService` in `Modules/Accounting/Services` bound as singleton in `AccountingServiceProvider`. Wired Sales Invoices (AR, Sales Revenue, Output VAT, COGS, and Inventory Relief) and atomic voiding reversal; wired Supplier Bills (Inventory Asset, Input VAT, Accounts Payable); wired Payments (Inbound Customer Receipts: Bank debit, AR credit; Outbound Supplier Payments: AP debit, Bank credit) both on immediate posting and draft-then-post; wired Stock Adjustments (surplus gain: Inventory Asset debit, Inventory Adjustment credit; shrinkage loss: Inventory Adjustment debit, Inventory Asset credit; 0 delta safely bypassed). All balances computed in integer cents (`*_cents` BIGINT). Module boundary isolation fully preserved (Arch tests clean: other modules inject `DocumentPostingService` without referencing Accounting models). 100% CI gate clean across Pint (394 files clean), Larastan Level 8 (0 errors), Pest (312 tests passing with 2,755 assertions), Vitest (68 frontend tests passing across 16 test files), ESLint, and TypeScript. Ticked Phase 5 third item.
 - `2026-11-01`: `feat/general-ledger-posting`: Implemented General Ledger double-entry posting engine in `Modules/Accounting` (`journal_entries` and `journal_entry_lines` tables with ULID PKs, gap-free per-tenant numbering `JRN-YYYY-000000`, integer minor units `*_cents` BIGINT), `JournalEntry` and `JournalEntryLine` models with `UsesTenantConnection` and model-level immutability guard, `JournalEntryStatus` enum, `PostJournalEntryData` and `JournalEntryLineData` DTOs, `JournalEntryService` (balanced-or-reject validation, inactive account rejection, atomic posting under `DB::connection('tenant')->transaction(..., 3)`, source linkage, reversal engine creating mirror inverse lines and linking original entry), `JournalEntryPosted` and `JournalEntryReversed` events (`ShouldDispatchAfterCommit`), `JournalEntryController`, Form Requests, API Resources, and `JournalEntryPolicy`. Refined strict typing for Larastan Level 8 (0 errors), Pint clean, 306 Pest backend tests passing (2,657 assertions), Vitest 68 tests passing, ESLint, and TypeScript clean. Ticked Phase 5 second item.
 - `2026-10-31`: `feat/chart-of-accounts`: Scaffolded `Modules/Accounting`, implemented hierarchical Chart of Accounts (`accounts` table in tenant DB with ULID PK, code, type, parent_id, is_system, system_name), `Account` model, `AccountType` and `SystemAccount` enums, `CreateAccountData`/`UpdateAccountData` DTOs, `AccountService` (hierarchy validation, cyclic hierarchy prevention, system account protections), `ChartOfAccountsSeeder` with 12 core system accounts and top-down hierarchical tree, `AccountController`, Form Requests, Resource, and `AccountPolicy`. Wired `ChartOfAccountsSeeder` into `ProvisionTenantDatabase` and `TenantAdminSeeder`. 100% CI clean across Pint, Larastan Level 8 (0 errors), Pest (298 backend tests passing with 2,551 assertions), Vitest (68 frontend tests passing), ESLint, and TypeScript. Ticked Phase 5 first item.
 

@@ -6,6 +6,7 @@ namespace Modules\Inventory\Services;
 
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Inventory\DTOs\CreateStockAdjustmentData;
 use Modules\Inventory\DTOs\RecordStockMovementData;
 use Modules\Inventory\Enums\StockMovementType;
@@ -26,6 +27,7 @@ final class StockAdjustmentService
         private readonly DatabaseManager $db,
         private readonly StockService $stockService,
         private readonly DocumentNumberingService $documentNumberingService,
+        private readonly DocumentPostingService $documentPostingService,
     ) {}
 
     public function create(CreateStockAdjustmentData $data): StockAdjustment
@@ -129,6 +131,15 @@ final class StockAdjustmentService
             $adjustment->update([
                 'total_cost_impact_cents' => $totalCostImpactCents,
             ]);
+
+            $this->documentPostingService->postStockAdjustment(
+                adjustmentId: (string) $adjustment->id,
+                adjustmentNumber: $adjustment->adjustment_number,
+                adjustmentDate: now(),
+                totalCostImpactCents: $totalCostImpactCents,
+                currency: 'USD',
+                userId: $data->userId,
+            );
 
             // Dispatch domain event (Phase 5 will attach ledger posting listener)
             $tenantId = TenantContext::get()?->id;

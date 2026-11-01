@@ -56,7 +56,7 @@
 
 - [x] Chart of Accounts (hierarchy, system accounts protected) and default CoA seeder.
 - [x] General Ledger posting engine (balanced-or-reject, source-linked, reversal-only corrections).
-- [ ] Wire Phase 3/4 documents to real journal postings (AR, revenue, output/input VAT, COGS, inventory, AP).
+- [x] Wire Phase 3/4 documents to real journal postings (AR, revenue, output/input VAT, COGS, inventory, AP).
 - [ ] Inventory costing (weighted average unless Open Questions say otherwise).
 - [ ] Credit Notes and Debit Notes (stock + ledger + balance effects).
 - [ ] Fiscal periods with lock/close; manual journals.

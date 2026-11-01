@@ -7,6 +7,7 @@ namespace Modules\Payments\Services;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\DatabaseManager;
+use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Payments\DTOs\AllocatePaymentData;
 use Modules\Payments\DTOs\CreatePaymentData;
 use Modules\Payments\Enums\PaymentStatus;
@@ -30,6 +31,7 @@ final class PaymentService
         private readonly DocumentNumberingService $numberingService,
         private readonly SalesInvoiceService $invoiceService,
         private readonly SupplierBillService $billService,
+        private readonly DocumentPostingService $documentPostingService,
     ) {}
 
     public function create(CreatePaymentData $data, string $userId): Payment
@@ -97,6 +99,16 @@ final class PaymentService
                     PaymentDisbursed::dispatch($payment, $tenantId, $userId);
                 }
 
+                $this->documentPostingService->postPayment(
+                    paymentId: (string) $payment->id,
+                    paymentNumber: $payment->payment_number,
+                    paymentDate: Carbon::parse($payment->payment_date),
+                    type: $payment->type->value,
+                    amountCents: $payment->amount_cents,
+                    currency: $payment->currency,
+                    userId: $userId,
+                );
+
                 foreach ($data->allocations as $alloc) {
                     $this->validatePayableTypeMatchesPayment($data->type, $alloc->payableType);
 
@@ -150,6 +162,16 @@ final class PaymentService
             } else {
                 PaymentDisbursed::dispatch($payment, $tenantId, $userId);
             }
+
+            $this->documentPostingService->postPayment(
+                paymentId: (string) $payment->id,
+                paymentNumber: $payment->payment_number,
+                paymentDate: Carbon::parse($payment->payment_date),
+                type: $payment->type->value,
+                amountCents: $payment->amount_cents,
+                currency: $payment->currency,
+                userId: $userId,
+            );
 
             return $payment->load('allocations');
         }, 3);

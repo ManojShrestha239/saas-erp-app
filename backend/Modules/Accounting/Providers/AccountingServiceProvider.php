@@ -10,6 +10,7 @@ use Modules\Accounting\Models\JournalEntry;
 use Modules\Accounting\Policies\AccountPolicy;
 use Modules\Accounting\Policies\JournalEntryPolicy;
 use Modules\Accounting\Services\AccountService;
+use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Accounting\Services\JournalEntryService;
 use Shared\Providers\ModuleServiceProvider;
 
@@ -24,7 +25,7 @@ final class AccountingServiceProvider extends ModuleServiceProvider
     {
         $this->app->singleton(AccountService::class);
         $this->app->singleton(JournalEntryService::class);
-
+        $this->app->singleton(DocumentPostingService::class);
     }
 
     public function boot(): void

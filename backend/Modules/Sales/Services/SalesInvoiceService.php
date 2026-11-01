@@ -7,6 +7,7 @@ namespace Modules\Sales\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Contacts\Services\ContactService;
 use Modules\Inventory\DTOs\RecordStockMovementData;
 use Modules\Inventory\Enums\StockMovementType;
@@ -33,6 +34,7 @@ final class SalesInvoiceService
         private readonly WarehouseService $warehouseService,
         private readonly ContactService $contactService,
         private readonly ProductService $productService,
+        private readonly DocumentPostingService $documentPostingService,
     ) {}
 
     public function create(CreateSalesInvoiceData $data, ?string $userId = null): SalesInvoice
@@ -327,6 +329,19 @@ final class SalesInvoiceService
                 'amount_paid_cents' => 0,
             ]);
 
+            // Post journal entry to General Ledger atomically inside the transaction
+            $this->documentPostingService->postSalesInvoice(
+                invoiceId: $invoice->id,
+                invoiceNumber: $invoice->invoice_number,
+                issueDate: Carbon::parse($invoice->issue_date),
+                subtotalCents: $invoice->subtotal_cents,
+                taxCents: $invoice->tax_cents,
+                totalCents: $invoice->total_cents,
+                cogsCents: $cogsCents,
+                currency: $invoice->currency,
+                userId: $userId,
+            );
+
             $tenant = TenantContext::get();
             $tenantId = $tenant !== null ? (string) $tenant->id : '';
 
@@ -393,6 +408,13 @@ final class SalesInvoiceService
                 'voided_at' => now(),
                 'amount_due_cents' => 0,
             ]);
+
+            // Reverse linked journal entry in General Ledger atomically inside the transaction
+            $this->documentPostingService->reverseSalesInvoice(
+                invoiceId: $invoice->id,
+                reason: 'Sales invoice voided',
+                userId: $userId,
+            );
 
             $tenant = TenantContext::get();
             $tenantId = $tenant !== null ? (string) $tenant->id : '';

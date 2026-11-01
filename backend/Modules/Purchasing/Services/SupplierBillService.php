@@ -7,6 +7,7 @@ namespace Modules\Purchasing\Services;
 use Carbon\Carbon;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Modules\Accounting\Services\DocumentPostingService;
 use Modules\Purchasing\DTOs\CreateSupplierBillData;
 use Modules\Purchasing\DTOs\SupplierBillItemData;
 use Modules\Purchasing\Enums\SupplierBillStatus;
@@ -23,6 +24,7 @@ final class SupplierBillService
     public function __construct(
         private readonly DatabaseManager $db,
         private readonly DocumentNumberingService $numberingService,
+        private readonly DocumentPostingService $documentPostingService,
     ) {}
 
     public function create(CreateSupplierBillData $data): SupplierBill
@@ -166,6 +168,18 @@ final class SupplierBillService
                 'amount_due_cents' => $bill->total_cents,
                 'amount_paid_cents' => 0,
             ]);
+
+            // Post journal entry to General Ledger atomically inside the transaction
+            $this->documentPostingService->postSupplierBill(
+                billId: $bill->id,
+                billNumber: $bill->bill_number,
+                billDate: Carbon::parse($bill->bill_date),
+                subtotalCents: $bill->subtotal_cents,
+                taxCents: $bill->tax_cents,
+                totalCents: $bill->total_cents,
+                currency: $bill->currency,
+                userId: $userId,
+            );
 
             $tenant = TenantContext::get();
             $tenantId = $tenant !== null ? (string) $tenant->id : '';
