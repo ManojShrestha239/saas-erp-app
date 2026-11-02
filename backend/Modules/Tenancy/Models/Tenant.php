@@ -25,6 +25,7 @@ final class Tenant extends Model
         'name',
         'slug',
         'database_name',
+        'owner_email',
         'status',
         'provisioning_error',
     ];

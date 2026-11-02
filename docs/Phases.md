@@ -65,7 +65,7 @@
 
 ## Phase 6: Super Admin Panel, Reports & Audit Logs
 
-- [ ] Super Admin dashboard: tenants, packages, subscriptions, feature toggles, suspend/reactivate, provisioning retry.
+- [x] Super Admin dashboard: tenants, packages, subscriptions, feature toggles, suspend/reactivate, provisioning retry.
 - [ ] Package limit and feature-flag enforcement middleware.
 - [ ] Immutable audit logs (Spatie Activitylog) in tenant DB + central `global_audit_logs`; viewer UI with filters.
 - [ ] Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement.

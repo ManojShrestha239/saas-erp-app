@@ -18,6 +18,7 @@ final class DatabaseSeeder extends Seeder
     {
         $this->call([
             SuperAdminSeeder::class,
+            PackageSeeder::class,
             DemoTenantSeeder::class,
             TenantAdminSeeder::class,
         ]);

@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (All 7 of 7 items completed — Phase 5 Complete!) · Active Task: VAT return calculation by period and rate with document drill-down and GL reconciliation (Completed)
-- **Last Completed Task:** `feat/vat-return-calculation`: Implemented VAT return calculation engine across sales invoices, credit notes, supplier bills, and debit notes with rate breakdowns, document drill-down, and double-entry GL reconciliation (Accounts 2120 and 1160); gap-free numbering `VAT-YYYY-000000` upon filing; model-level immutability for filed returns; Browsershot PDF export; frontend `/accounting` VAT Return & Tax tab with KPI cards, rate breakdown table, document drill-down table, filing modal, and history modal. Full CI gate clean across Pint (461 files), Larastan Level 8 (380 files, 0 errors), Pest (346 tests passed, 3,025 assertions, all 12 Arch tests clean), Vitest (76 tests passed across 17 test files), ESLint, and Vite production build.
-- **Current Focus:** Transition to Phase 6: Super Admin Panel, Reports & Audit Logs (Item 1: Super Admin dashboard & tenant package management).
-- **Working branch:** `feat/vat-return-calculation`
+- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (1 of 6 items completed) · Active Task: Super Admin dashboard: tenants, packages, subscriptions, feature toggles, suspend/reactivate, provisioning retry (Completed)
+- **Last Completed Task:** `feat/super-admin-dashboard`: Implemented Central Super Admin control plane for tenant lifecycle, subscription packages, and global feature toggles. Added `feature_flags` table and `owner_email` to `tenants` on central database; Package & Subscription models on `pgsql_central`; `TenantManagementService` cross-module facade preserving ArchTest boundaries; full package limits and integer minor units (`price_cents` BIGINT); tenant suspend/reactivate/provisioning retry; central session auth and web routes guarded by `EnsureCentralDomain`; responsive frontend platform dashboard with KPI cards, failure alert banner, TanStack tenant table with status filtering, package cards, subscription table, and feature toggle switches. 100% CI gate passing across Pint (492 files clean), Larastan Level 8 (0 errors across 411 files), Pest (361 tests passed, 3,109 assertions, 12 Arch tests clean), Vitest (81 tests passed across 18 files), ESLint, TypeScript, and Vite production build.
+- **Current Focus:** Phase 6 Item 2: Package limit and feature-flag enforcement middleware.
+- **Working branch:** `feat/super-admin-dashboard`
 
 ## Architectural Decisions (Decision Log)
 
@@ -64,6 +64,7 @@
 | 42  | Credit Notes and Debit Notes Architecture (`feat/credit-debit-notes`): Customer Credit Notes in `Modules\Sales` and Supplier Debit Notes in `Modules\Purchasing` with ULID PKs, status lifecycle (`draft` → `posted` → `void`), and model-level immutability. Gap-free document numbering (`CN-YYYY-000000`, `DN-YYYY-000000`), integer minor units (`*_cents` BIGINT). Atomic posting inside `DB::connection('tenant')->transaction(..., 3)`: Credit Note reduces linked invoice `amount_due_cents`, restocks inventory via `StockMovementType::SalesReturn`, recalculates AVCO if cost > 0, and generates double-entry GL journal in `DocumentPostingService::postCreditNote` (Debit Sales Revenue `4110`, Debit Output VAT `2120`, Debit Inventory Asset `1150`; Credit Accounts Receivable `1130`, Credit COGS `5100`). Debit Note reduces linked bill `amount_due_cents`, decrements inventory via `StockMovementType::PurchaseReturn` respecting `allow_negative_stock`, and generates double-entry GL journal in `DocumentPostingService::postDebitNote` (Debit Accounts Payable `2110`; Credit Inventory Asset `1150`, Credit Input VAT `1160`). Integration into `ContactStatementService` for customer/supplier ledger statements. Frontend TanStack DataTables and modals (`CreditNoteModal`, `DebitNoteModal`) with view and create workflows. | Concurrency-safe, mathematically sound return adjustments with complete stock, subledger, and General Ledger synchronization; enforces model immutability and strict ArchTest boundaries without floating-point math. |
 | 43  | Fiscal Periods & Manual Journal Approval Workflow (`feat/fiscal-periods-manual-journals`): `fiscal_periods` table with ULID PK, tenant isolation, and status (`open`, `locked`, `closed`). `assertPeriodOpen` integrated into `JournalEntryService::post` and `reverse`, rejecting transactions falling into locked or closed periods with `ApiException::badRequest` (`FISCAL_PERIOD_LOCKED` / `FISCAL_PERIOD_CLOSED`). Closing is permanent and irreversible. Manual journals support full approval lifecycle (`draft` → `pending_approval` → `posted` / `rejected`). Drafts/rejected entries do not consume sequential numbering (`entry_number` nullable until post) and can be modified or deleted. Gap-free numbering `JRN-YYYY-000000` is assigned atomically inside tenant transaction upon approval or posting. Posted entries remain strictly immutable (corrections via reversals only). Frontend `/accounting` interface with TanStack DataTables, interactive tabs, `ManualJournalModal`, and `GeneratePeriodsModal`. | Enforces financial period boundaries and legal accounting close standards; prevents post-close ledger tampering; decouples draft preparation from sequential numbering consumption; guarantees gap-free sequence integrity and full auditability. |
 | 44  | VAT Return Calculation, GL Reconciliation & Filing Architecture (`feat/vat-return-calculation`): Live calculation engine querying Sales Invoices, Sales Credit Notes, Supplier Bills, and Supplier Debit Notes via typed service query methods (preserves ArchTest module isolation); integer cents math (`sales_taxable_cents`, `output_vat_cents`, `purchases_taxable_cents`, `input_vat_cents`, `net_vat_cents`); rate breakdown JSONB aggregation; General Ledger reconciliation comparing calculated output/input VAT against GL Account 2120 (Output VAT) and Account 1160 (Input VAT), asserting `is_reconciled`; gap-free numbering `VAT-YYYY-000000` upon filing with model-level immutability; Browsershot PDF generation; React frontend tab with KPI summary cards, rate breakdown table, and drilldown document table. | Provides statutory tax reporting and audit compliance; guarantees double-entry reconciliation between source commercial documents and the General Ledger; eliminates float rounding errors; ensures immutability of filed statutory declarations. |
+| 45  | Super Admin Central Control Plane, Tenant Lifecycle & Packaging Engine (`feat/super-admin-dashboard`): `packages`, `subscriptions`, and `feature_flags` tables on `central` connection with integer minor units (`price_cents` BIGINT). `Modules\Tenancy\Services\TenantManagementService` acts as the cross-module isolation facade for tenant lifecycle queries, suspension/reactivation, and provisioning retry without exposing Tenancy models directly to SuperAdmin (strictly compliant with Pest ArchTest). Super admin routes operate strictly on central domain via `EnsureCentralDomain` (which rejects tenant subdomains with 404 `ROUTE_NOT_FOUND`) and are prioritized ahead of authentication in `bootstrap/app.php`. Provisioning retry resets status to `provisioning`, clears `provisioning_error`, and re-dispatches `ProvisionTenantDatabase`. Dedicated frontend central dashboard (`/admin/dashboard`) with TanStack tenant table, status filtering, subscription tier assignment, and feature switches. | Eliminates cross-module model leakage; guarantees tenant subdomains cannot probe or access platform administrative endpoints; enables centralized monetization, limit configurations, and self-healing provisioning. |
 
 ## Conventions Locked In
 
@@ -84,36 +85,48 @@
 
 ## Next Steps
 
-1. Phase 6 Item 1: Super Admin dashboard & tenant package management (`feat/super-admin-panel`).
-2. Phase 6 Item 2: Package limit and feature-flag enforcement middleware.
-3. Phase 6 Item 3: Immutable audit logs (Spatie Activitylog in tenant DB + central `global_audit_logs`).
-4. Phase 6 Item 4: Financial reports (P&L, Balance Sheet, Trial Balance).
+1. Phase 6 Item 2: Package limit and feature-flag enforcement middleware (`feat/package-limits-feature-flags`).
+2. Phase 6 Item 3: Immutable audit logs (Spatie Activitylog in tenant DB + central `global_audit_logs`).
+3. Phase 6 Item 4: Financial reports (P&L, Balance Sheet, Trial Balance).
+4. Phase 6 Item 5: PDF (Browsershot) and Excel (Maatwebsite) exports on the `reports` queue with signed URLs.
+5. Phase 6 Item 6: FCM push helper for low-stock and overdue alerts.
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Accounting/Database/Migrations/2026_11_02_000003_create_accounting_vat_returns_table.php`
-- `backend/Modules/Accounting/Enums/VatReturnStatus.php`
-- `backend/Modules/Accounting/Models/VatReturn.php`
-- `backend/Modules/Accounting/Policies/VatReturnPolicy.php`
-- `backend/Modules/Accounting/DTOs/CalculateVatReturnData.php`
-- `backend/Modules/Accounting/DTOs/FileVatReturnData.php`
-- `backend/Modules/Accounting/Services/VatReturnService.php`
-- `backend/Modules/Accounting/Http/Controllers/VatReturnController.php`
-- `backend/Modules/Accounting/resources/views/pdf/vat_return.blade.php`
-- `backend/tests/Feature/Accounting/VatReturnTest.php`
-- `frontend/src/features/accounting/types/accounting.types.ts`
-- `frontend/src/features/accounting/api/accountingApi.ts`
-- `frontend/src/features/accounting/components/VatReturnTab.tsx`
-- `frontend/src/features/accounting/components/VatRateBreakdownTable.tsx`
-- `frontend/src/features/accounting/components/VatDocumentDrilldownTable.tsx`
-- `frontend/src/features/accounting/components/FileVatReturnModal.tsx`
-- `frontend/src/features/accounting/components/FiledReturnsModal.tsx`
-- `frontend/src/features/accounting/pages/AccountingIndex.tsx`
-- `frontend/src/features/accounting/pages/__tests__/AccountingIndex.test.tsx`
+- `backend/Modules/SuperAdmin/Models/Package.php`
+- `backend/Modules/SuperAdmin/Models/Subscription.php`
+- `backend/Modules/SuperAdmin/Models/FeatureFlag.php`
+- `backend/Modules/Tenancy/Services/TenantManagementService.php`
+- `backend/Modules/SuperAdmin/Services/SuperAdminPackageService.php`
+- `backend/Modules/SuperAdmin/Services/SuperAdminSubscriptionService.php`
+- `backend/Modules/SuperAdmin/Services/SuperAdminFeatureFlagService.php`
+- `backend/Modules/SuperAdmin/Services/SuperAdminDashboardService.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminTenantController.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminPackageController.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminSubscriptionController.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminFeatureFlagController.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminDashboardController.php`
+- `backend/Modules/SuperAdmin/Routes/api.php`
+- `backend/Modules/SuperAdmin/Routes/web.php`
+- `backend/bootstrap/app.php`
+- `backend/tests/Feature/SuperAdmin/SuperAdminManagementTest.php`
+- `backend/tests/Feature/SuperAdmin/SuperAdminWebRouteTest.php`
+- `frontend/src/features/super-admin/types/superAdmin.types.ts`
+- `frontend/src/features/super-admin/api/superAdminApi.ts`
+- `frontend/src/layouts/AdminLayout.tsx`
+- `frontend/src/features/super-admin/pages/SuperAdminDashboard.tsx`
+- `frontend/src/features/super-admin/pages/SuperAdminLogin.tsx`
+- `frontend/src/features/super-admin/components/SuspendTenantModal.tsx`
+- `frontend/src/features/super-admin/components/PackageFormModal.tsx`
+- `frontend/src/features/super-admin/components/AssignSubscriptionModal.tsx`
+- `frontend/src/features/super-admin/components/TenantDetailsModal.tsx`
+- `frontend/src/features/super-admin/pages/__tests__/SuperAdminDashboard.test.tsx`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-02`: `feat/super-admin-dashboard`: Implemented Central Super Admin control plane for tenant lifecycle, subscription packages, and global feature toggles. Added `feature_flags` table and `owner_email` to `tenants` on central database; Package & Subscription models on `pgsql_central`; `TenantManagementService` cross-module facade preserving ArchTest boundaries; full package limits and integer minor units (`price_cents` BIGINT); tenant suspend/reactivate/provisioning retry; central session auth and web routes guarded by `EnsureCentralDomain`; responsive frontend platform dashboard with KPI cards, failure alert banner, TanStack tenant table with status filtering, package cards, subscription table, and feature toggle switches. 100% CI gate passing across Pint (492 files clean), Larastan Level 8 (0 errors across 411 files), Pest (361 tests passed, 3,109 assertions, 12 Arch tests clean), Vitest (81 tests passed across 18 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 first item.
 
 - `2026-11-02`: `feat/vat-return-calculation`: Implemented VAT return calculation engine across sales invoices, credit notes, supplier bills, and debit notes with rate breakdowns, document drill-down, and double-entry GL reconciliation (Accounts 2120 and 1160); gap-free numbering `VAT-YYYY-000000` upon filing; model-level immutability for filed returns; Browsershot PDF export; frontend `/accounting` VAT Return & Tax tab with KPI cards, rate breakdown table, document drill-down table, filing modal, and history modal. Full CI gate clean across Pint (461 files), Larastan Level 8 (380 files, 0 errors), Pest (346 tests passed, 3,025 assertions, all 12 Arch tests clean), Vitest (76 tests passed across 17 test files), ESLint, and Vite production build. Ticked Phase 5 seventh item — Phase 5 Complete!
 
@@ -125,6 +138,4 @@
 - `2026-10-31`: `feat/chart-of-accounts`: Scaffolded `Modules/Accounting`, implemented hierarchical Chart of Accounts (`accounts` table in tenant DB with ULID PK, code, type, parent_id, is_system, system_name), `Account` model, `AccountType` and `SystemAccount` enums, `CreateAccountData`/`UpdateAccountData` DTOs, `AccountService` (hierarchy validation, cyclic hierarchy prevention, system account protections), `ChartOfAccountsSeeder` with 12 core system accounts and top-down hierarchical tree, `AccountController`, Form Requests, Resource, and `AccountPolicy`. Wired `ChartOfAccountsSeeder` into `ProvisionTenantDatabase` and `TenantAdminSeeder`. 100% CI clean across Pint, Larastan Level 8 (0 errors), Pest (298 backend tests passing with 2,551 assertions), Vitest (68 frontend tests passing), ESLint, and TypeScript. Ticked Phase 5 first item.
 - `2026-10-29`: `feat/purchasing-ui`: Built complete Purchasing & Procurement frontend web interface (`/purchasing`) using Inertia + React 19 + TypeScript. Registered authenticated web route in `Modules/Purchasing/Routes/web.php` guarded by `EnsureTenantSession` and `identify.tenant`. Built `PurchasingIndex.tsx` with 3 core tabs: (1) Purchase Orders with TanStack DataTable; (2) Supplier Bills with status filtering, invoice references, payment status, amount paid, and balance due; (3) Accounts Payable Overview displaying total outstanding AP liabilities and per-supplier balance cards. Created `PurchaseOrderFormModal` with dynamic product rows and 13% VAT calculations, `GoodsReceiptModal`, `SupplierBillFormModal`, and inspection modals. Added backend feature test `PurchasingWebRouteTest.php` and Vitest component tests `PurchasingIndex.test.tsx`. 100% CI gate clean across Pint, Larastan Level 8 (0 errors), Pest, Vitest, ESLint, TypeScript, and Vite production build.
 - `2026-10-29`: `feat/inventory-catalog-ui`: Built complete Inventory & Product Catalog frontend web interface (`/inventory`, with `/products` redirect) using Inertia + React 19 + TypeScript. Includes authenticated web routes registered in `Modules/Inventory/Routes/web.php` guarded by `EnsureTenantSession` and `identify.tenant`, sidebar navigation updated to `products.view` in `AppLayout.tsx`. Built `InventoryIndex.tsx` with 4 dedicated management tabs: (1) Products Catalog with TanStack DataTable; (2) Stock Balances displaying on-hand, reserved, available levels per warehouse and product; (3) Stock Adjustments table with audited mandatory reasons, financial cost impact preview, and detailed inspection modal; (4) Warehouses management table with default and status badges. Integrated `ProductFormModal`, `StockAdjustmentModal`, `WarehouseFormModal`, and `CsvImportDialog`. Created full backend feature test `InventoryWebRouteTest.php` and Vitest unit/component tests `InventoryIndex.test.tsx`. 100% CI gate clean.
-- `2026-10-29`: `feat/contact-statements-aging-buckets`: Implemented AR/AP aging calculation engine and Contact Statements with printable/downloadable PDFs via Browsershot. Built `ContactStatementService` in `Modules/Contacts/Services` orchestrating domain data across `SalesInvoiceService`, `SupplierBillService`, and `PaymentService` while strictly honoring ArchTest model isolation. Calculates chronological aging buckets (`current`, `days_1_30`, `days_31_60`, `days_61_90`, `days_over_90`) in integer minor units (`*_cents` BIGINT) with zero floats. Implemented complete Statement of Account activity ledger with opening balance forward, chronological transaction collation, cumulative running balances, and closing balance due. Created specialized print Blade template `pdf/statement.blade.php`. Built interactive `ContactStatementDialog` frontend component. Full CI gate clean.
-- `2026-10-29`: `feat/document-pdf-browsershot`: Implemented document PDF generation engine using Spatie Browsershot and Alpine headless Chromium in Docker. Configured container packages (`chromium`, `nodejs`, `npm`, `puppeteer`) and backend service configuration (`CHROME_PATH`, `NODE_PATH`, `NODE_MODULES_PATH`). Created generic `PdfRendererService` in `Shared/Services` supporting inline streaming and attachment download. Auto-registered module Blade views. Added `getDetails` on `ContactService`, `WarehouseService`, and `ProductService` for clean cross-module data exchange without model coupling. Created unified A4 print layout and individual document templates for Sales Invoices, Sales Quotations, and Purchase Orders. Added Pest feature tests in `DocumentPdfGenerationTest.php`. Full CI green.
-- `2024-10-24` to `2026-10-29`: Earlier Phase 1-4 items: Multi-tenancy setup, Docker, Spatie RBAC, central/tenant schemas, user auth, product catalog, stock engine, manual stock adjustments, contact directory, reusable DataTable, low-stock alerts with SSE stream, CSV import engine, seeders, document numbering engine, purchasing cycle, sales quotations & invoices, payment allocations, atomic invoice posting & inventory sync, and central migration discovery.
+- `2024-10-24` to `2026-10-29`: Earlier Phase 1-5 items: Multi-tenancy setup, Docker, Spatie RBAC, central/tenant schemas, user auth, product catalog, stock engine, manual stock adjustments, contact directory, reusable DataTable, low-stock alerts with SSE stream, CSV import engine, seeders, document numbering engine, purchasing cycle, sales quotations & invoices, payment allocations, atomic invoice posting & inventory sync, central migration discovery, contact statements with aging buckets, Browsershot document PDFs, and full financial ledger.

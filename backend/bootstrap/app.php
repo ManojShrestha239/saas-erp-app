@@ -38,7 +38,10 @@ return Application::configure(basePath: dirname(__DIR__))
             EnsureJsonRequest::class,
         ]);
 
+        $middleware->redirectGuestsTo(fn (Request $request): string => $request->is('admin*') ? route('super-admin.web.login') : route('login'));
+
         $middleware->priority([
+            EnsureCentralDomain::class,
             IdentifyTenant::class,
             HandlePrecognitiveRequests::class,
             EncryptCookies::class,

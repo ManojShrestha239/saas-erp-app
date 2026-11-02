@@ -27,6 +27,7 @@ final class RegisterTenantController
             'name' => $request->validated('name'),
             'slug' => $slug,
             'database_name' => $databaseName,
+            'owner_email' => (string) $request->validated('owner_email'),
             'status' => 'provisioning',
         ]);
 
