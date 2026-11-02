@@ -32,10 +32,12 @@ final class DocumentNumberingServiceTest extends TestCase
         $this->assertSame('CN', DocumentType::CreditNote->defaultPrefix());
         $this->assertSame('DN', DocumentType::DebitNote->defaultPrefix());
         $this->assertSame('JRN', DocumentType::JournalEntry->defaultPrefix());
+        $this->assertSame('VAT', DocumentType::VatReturn->defaultPrefix());
 
         $this->assertSame('Sales Invoice', DocumentType::Invoice->label());
         $this->assertSame('Purchase Order', DocumentType::PurchaseOrder->label());
         $this->assertSame('Stock Adjustment', DocumentType::StockAdjustment->label());
+        $this->assertSame('VAT Return', DocumentType::VatReturn->label());
     }
 
     public function test_format_number_with_yearly_sequence(): void

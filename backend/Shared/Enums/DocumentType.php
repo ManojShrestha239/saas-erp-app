@@ -17,6 +17,7 @@ enum DocumentType: string
     case CreditNote = 'credit_note';
     case DebitNote = 'debit_note';
     case JournalEntry = 'journal_entry';
+    case VatReturn = 'vat_return';
 
     public function defaultPrefix(): string
     {
@@ -32,6 +33,7 @@ enum DocumentType: string
             self::CreditNote => 'CN',
             self::DebitNote => 'DN',
             self::JournalEntry => 'JRN',
+            self::VatReturn => 'VAT',
         };
     }
 
@@ -49,6 +51,7 @@ enum DocumentType: string
             self::CreditNote => 'Credit Note',
             self::DebitNote => 'Debit Note',
             self::JournalEntry => 'Journal Entry',
+            self::VatReturn => 'VAT Return',
         };
     }
 }

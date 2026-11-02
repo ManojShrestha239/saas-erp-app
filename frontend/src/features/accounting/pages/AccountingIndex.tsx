@@ -5,6 +5,7 @@ import { JournalEntriesTable } from '../components/JournalEntriesTable';
 import { FiscalPeriodsTable } from '../components/FiscalPeriodsTable';
 import { AccountsTable } from '../components/AccountsTable';
 import { ManualJournalModal } from '../components/ManualJournalModal';
+import { VatReturnTab } from '../components/VatReturnTab';
 import { accountingApi } from '../api/accountingApi';
 import type {
   AccountItem,
@@ -15,11 +16,12 @@ import {
   BookOpen,
   Calendar,
   ListTree,
+  Calculator,
   CheckCircle2,
   AlertCircle,
 } from 'lucide-react';
 
-type TabKey = 'journals' | 'periods' | 'accounts';
+type TabKey = 'journals' | 'periods' | 'accounts' | 'vat_return';
 
 export default function AccountingIndex() {
   const [activeTab, setActiveTab] = useState<TabKey>('journals');
@@ -103,7 +105,7 @@ export default function AccountingIndex() {
   }, [loadAccounts, loadEntries]);
 
   useEffect(() => {
-    if (activeTab === 'periods') {
+    if (activeTab === 'periods' || activeTab === 'vat_return') {
       loadPeriods();
     }
   }, [activeTab, loadPeriods]);
@@ -204,6 +206,19 @@ export default function AccountingIndex() {
             <ListTree className="h-4 w-4" />
             Chart of Accounts
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('vat_return')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'vat_return'
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
+            }`}
+          >
+            <Calculator className="h-4 w-4" />
+            VAT Return & Tax
+          </button>
         </div>
 
         {/* Active Tab Content */}
@@ -235,6 +250,13 @@ export default function AccountingIndex() {
             accounts={accounts}
             loading={loadingAccounts}
             onRefresh={loadAccounts}
+          />
+        )}
+
+        {activeTab === 'vat_return' && (
+          <VatReturnTab
+            fiscalPeriods={periods}
+            onFeedback={setFeedback}
           />
         )}
 

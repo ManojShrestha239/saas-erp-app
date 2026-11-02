@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 use Modules\Accounting\Http\Controllers\AccountController;
 use Modules\Accounting\Http\Controllers\FiscalPeriodController;
 use Modules\Accounting\Http\Controllers\JournalEntryController;
+use Modules\Accounting\Http\Controllers\VatReturnController;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 
 Route::middleware([
@@ -45,4 +46,12 @@ Route::middleware([
     Route::post('accounting/fiscal-periods/{id}/lock', [FiscalPeriodController::class, 'lock'])->name('accounting.fiscal-periods.lock');
     Route::post('accounting/fiscal-periods/{id}/unlock', [FiscalPeriodController::class, 'unlock'])->name('accounting.fiscal-periods.unlock');
     Route::post('accounting/fiscal-periods/{id}/close', [FiscalPeriodController::class, 'close'])->name('accounting.fiscal-periods.close');
+
+    // VAT Returns
+    Route::get('accounting/vat-return/calculate', [VatReturnController::class, 'calculate'])->name('accounting.vat-return.calculate');
+    Route::get('accounting/vat-return/pdf', [VatReturnController::class, 'exportPdf'])->name('accounting.vat-return.pdf');
+    Route::get('accounting/vat-returns', [VatReturnController::class, 'index'])->name('accounting.vat-returns.index');
+    Route::post('accounting/vat-returns', [VatReturnController::class, 'store'])->name('accounting.vat-returns.store');
+    Route::get('accounting/vat-returns/{id}', [VatReturnController::class, 'show'])->name('accounting.vat-returns.show');
+    Route::delete('accounting/vat-returns/{id}', [VatReturnController::class, 'destroy'])->name('accounting.vat-returns.destroy');
 });

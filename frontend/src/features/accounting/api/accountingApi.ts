@@ -103,4 +103,37 @@ export const accountingApi = {
   deleteJournalEntry: (id: string): Promise<ApiSuccessResponse<null>> => {
     return apiClient.delete<null>(`/accounting/journal-entries/${id}`);
   },
+
+  // VAT Returns
+  calculateVatReturn: (params: import('../types/accounting.types').CalculateVatReturnParams): Promise<ApiSuccessResponse<import('../types/accounting.types').VatCalculationResult>> => {
+    return apiClient.get<import('../types/accounting.types').VatCalculationResult>('/accounting/vat-return/calculate', {
+      params: params as Record<string, string | number | boolean | undefined | null>,
+    });
+  },
+
+  fileVatReturn: (payload: import('../types/accounting.types').FileVatReturnPayload): Promise<ApiSuccessResponse<import('../types/accounting.types').VatReturnItem>> => {
+    return apiClient.post<import('../types/accounting.types').VatReturnItem>('/accounting/vat-returns', payload);
+  },
+
+  getVatReturns: (params?: { fiscal_period_id?: string; search?: string; per_page?: number; page?: number }): Promise<ApiSuccessResponse<import('../types/accounting.types').VatReturnItem[]>> => {
+    return apiClient.get<import('../types/accounting.types').VatReturnItem[]>('/accounting/vat-returns', {
+      params: params as Record<string, string | number | boolean | undefined | null>,
+    });
+  },
+
+  getVatReturn: (id: string): Promise<ApiSuccessResponse<import('../types/accounting.types').VatReturnItem>> => {
+    return apiClient.get<import('../types/accounting.types').VatReturnItem>(`/accounting/vat-returns/${id}`);
+  },
+
+  deleteVatReturn: (id: string): Promise<ApiSuccessResponse<null>> => {
+    return apiClient.delete<null>(`/accounting/vat-returns/${id}`);
+  },
+
+  getPdfUrl: (params: import('../types/accounting.types').CalculateVatReturnParams): string => {
+    const searchParams = new URLSearchParams();
+    if (params.fiscal_period_id) searchParams.set('fiscal_period_id', params.fiscal_period_id);
+    if (params.from_date) searchParams.set('from_date', params.from_date);
+    if (params.to_date) searchParams.set('to_date', params.to_date);
+    return `/api/v1/accounting/vat-return/pdf?${searchParams.toString()}`;
+  },
 };

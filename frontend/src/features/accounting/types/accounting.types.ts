@@ -121,3 +121,115 @@ export interface RejectJournalEntryPayload {
 export interface ReverseJournalEntryPayload {
   reason: string;
 }
+
+export interface VatCalculationSummary {
+  total_sales_taxable_cents: number;
+  total_output_vat_cents: number;
+  total_sales_gross_cents: number;
+  total_purchases_taxable_cents: number;
+  total_input_vat_cents: number;
+  total_purchases_gross_cents: number;
+  net_vat_payable_cents: number;
+}
+
+export interface VatRateBreakdown {
+  tax_rate_percent: number;
+  sales_taxable_cents: number;
+  output_vat_cents: number;
+  sales_total_cents: number;
+  purchases_taxable_cents: number;
+  input_vat_cents: number;
+  purchases_total_cents: number;
+  net_vat_cents: number;
+}
+
+export interface VatLedgerReconciliation {
+  gl_output_vat_cents: number;
+  gl_input_vat_cents: number;
+  gl_net_vat_cents: number;
+  output_vat_discrepancy_cents: number;
+  input_vat_discrepancy_cents: number;
+  net_vat_discrepancy_cents: number;
+  is_reconciled: boolean;
+}
+
+export interface VatDocumentRate {
+  rate_percent: number;
+  subtotal_cents: number;
+  tax_cents: number;
+}
+
+export interface VatDocument {
+  document_type: 'sales_invoice' | 'credit_note' | 'supplier_bill' | 'debit_note';
+  id: string;
+  document_number: string;
+  date: string;
+  contact_id: string;
+  contact_name: string;
+  contact_tax_id: string | null;
+  direction: 'output' | 'input';
+  subtotal_cents: number;
+  tax_cents: number;
+  total_cents: number;
+  rates: VatDocumentRate[];
+}
+
+export interface VatCalculationResult {
+  from_date: string;
+  to_date: string;
+  fiscal_period: {
+    id: string;
+    name: string;
+    fiscal_year: number;
+    period_number: number;
+    status: string;
+  } | null;
+  summary: VatCalculationSummary;
+  rate_breakdown: VatRateBreakdown[];
+  ledger_reconciliation: VatLedgerReconciliation;
+  documents: VatDocument[];
+}
+
+export interface VatReturnItem {
+  id: string;
+  return_number: string;
+  fiscal_period_id: string | null;
+  from_date: string;
+  to_date: string;
+  status: 'draft' | 'filed';
+  status_label: string;
+  sales_taxable_cents: number;
+  output_vat_cents: number;
+  purchases_taxable_cents: number;
+  input_vat_cents: number;
+  net_vat_cents: number;
+  rate_breakdown: VatRateBreakdown[];
+  is_reconciled: boolean;
+  gl_output_vat_cents: number;
+  gl_input_vat_cents: number;
+  gl_discrepancy_cents: number;
+  filed_by_user_id: string | null;
+  filed_at: string | null;
+  notes: string | null;
+  created_at: string | null;
+  fiscal_period?: {
+    id: string;
+    name: string;
+    fiscal_year: number;
+    period_number: number;
+    status: string;
+  } | null;
+}
+
+export interface CalculateVatReturnParams {
+  fiscal_period_id?: string | null;
+  from_date?: string | null;
+  to_date?: string | null;
+}
+
+export interface FileVatReturnPayload {
+  fiscal_period_id?: string | null;
+  from_date?: string | null;
+  to_date?: string | null;
+  notes?: string | null;
+}

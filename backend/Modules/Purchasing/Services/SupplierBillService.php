@@ -146,6 +146,11 @@ final class SupplierBillService
         }, 3);
     }
 
+    public function post(string $billId, string $userId): SupplierBill
+    {
+        return $this->postBill($billId, $userId);
+    }
+
     public function postBill(string $billId, string $userId): SupplierBill
     {
         return $this->db->connection('tenant')->transaction(function () use ($billId, $userId): SupplierBill {
@@ -463,5 +468,79 @@ final class SupplierBillService
             'prior_billed_cents' => $priorBilledCents,
             'transactions' => $transactions,
         ];
+    }
+
+    /**
+     * @return list<array{
+     *     id: string,
+     *     document_number: string,
+     *     supplier_id: string,
+     *     bill_date: string,
+     *     status: string,
+     *     currency: string,
+     *     subtotal_cents: int,
+     *     tax_cents: int,
+     *     total_cents: int,
+     *     items: list<array{
+     *         id: string,
+     *         product_id: ?string,
+     *         description: ?string,
+     *         quantity: int,
+     *         unit_cost_cents: int,
+     *         tax_rate_percent: int,
+     *         subtotal_cents: int,
+     *         tax_cents: int,
+     *         total_cents: int
+     *     }>
+     * }>
+     */
+    public function getVatReportData(Carbon $startDate, Carbon $endDate): array
+    {
+        $validStatuses = [
+            SupplierBillStatus::Posted,
+            SupplierBillStatus::PartiallyPaid,
+            SupplierBillStatus::Paid,
+        ];
+
+        $bills = SupplierBill::with('items')
+            ->whereIn('status', $validStatuses)
+            ->whereDate('bill_date', '>=', $startDate->toDateString())
+            ->whereDate('bill_date', '<=', $endDate->toDateString())
+            ->orderBy('bill_date', 'asc')
+            ->orderBy('bill_number', 'asc')
+            ->get();
+
+        $result = [];
+        foreach ($bills as $bill) {
+            $items = [];
+            foreach ($bill->items as $item) {
+                $items[] = [
+                    'id' => (string) $item->id,
+                    'product_id' => $item->product_id !== null ? (string) $item->product_id : null,
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_cost_cents' => $item->unit_cost_cents,
+                    'tax_rate_percent' => $item->tax_rate_percent,
+                    'subtotal_cents' => $item->subtotal_cents,
+                    'tax_cents' => $item->tax_cents,
+                    'total_cents' => $item->total_cents,
+                ];
+            }
+
+            $result[] = [
+                'id' => (string) $bill->id,
+                'document_number' => $bill->bill_number,
+                'supplier_id' => (string) $bill->supplier_id,
+                'bill_date' => Carbon::parse($bill->bill_date)->toDateString(),
+                'status' => $bill->status->value,
+                'currency' => $bill->currency,
+                'subtotal_cents' => $bill->subtotal_cents,
+                'tax_cents' => $bill->tax_cents,
+                'total_cents' => $bill->total_cents,
+                'items' => $items,
+            ];
+        }
+
+        return $result;
     }
 }

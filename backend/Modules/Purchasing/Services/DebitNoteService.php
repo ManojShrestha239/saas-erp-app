@@ -335,4 +335,76 @@ final class DebitNoteService
     {
         return DebitNote::with(['items', 'bill'])->find($id);
     }
+
+    /**
+     * @return list<array{
+     *     id: string,
+     *     document_number: string,
+     *     supplier_id: string,
+     *     supplier_bill_id: string,
+     *     issue_date: string,
+     *     status: string,
+     *     currency: string,
+     *     subtotal_cents: int,
+     *     tax_cents: int,
+     *     total_cents: int,
+     *     items: list<array{
+     *         id: string,
+     *         product_id: string,
+     *         description: ?string,
+     *         quantity: int,
+     *         unit_cost_cents: int,
+     *         tax_rate_percent: int,
+     *         tax_category: ?string,
+     *         subtotal_cents: int,
+     *         tax_cents: int,
+     *         total_cents: int
+     *     }>
+     * }>
+     */
+    public function getVatReportData(Carbon $startDate, Carbon $endDate): array
+    {
+        $debitNotes = DebitNote::with('items')
+            ->where('status', DebitNoteStatus::Posted)
+            ->whereDate('issue_date', '>=', $startDate->toDateString())
+            ->whereDate('issue_date', '<=', $endDate->toDateString())
+            ->orderBy('issue_date', 'asc')
+            ->orderBy('debit_note_number', 'asc')
+            ->get();
+
+        $result = [];
+        foreach ($debitNotes as $dn) {
+            $items = [];
+            foreach ($dn->items as $item) {
+                $items[] = [
+                    'id' => (string) $item->id,
+                    'product_id' => (string) $item->product_id,
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_cost_cents' => $item->unit_cost_cents,
+                    'tax_rate_percent' => $item->tax_rate_percent,
+                    'tax_category' => $item->tax_category,
+                    'subtotal_cents' => $item->subtotal_cents,
+                    'tax_cents' => $item->tax_cents,
+                    'total_cents' => $item->total_cents,
+                ];
+            }
+
+            $result[] = [
+                'id' => (string) $dn->id,
+                'document_number' => $dn->debit_note_number,
+                'supplier_id' => (string) $dn->supplier_id,
+                'supplier_bill_id' => (string) $dn->supplier_bill_id,
+                'issue_date' => Carbon::parse($dn->issue_date)->toDateString(),
+                'status' => $dn->status->value,
+                'currency' => $dn->currency,
+                'subtotal_cents' => $dn->subtotal_cents,
+                'tax_cents' => $dn->tax_cents,
+                'total_cents' => $dn->total_cents,
+                'items' => $items,
+            ];
+        }
+
+        return $result;
+    }
 }

@@ -6,6 +6,7 @@ import type {
   AccountItem,
   FiscalPeriodItem,
   JournalEntryItem,
+  VatCalculationResult,
 } from '../../types/accounting.types';
 import type { ApiSuccessResponse } from '@/shared/types/apiResponse';
 
@@ -29,6 +30,12 @@ vi.mock('../../api/accountingApi', () => ({
     rejectJournalEntry: vi.fn(),
     reverseJournalEntry: vi.fn(),
     deleteJournalEntry: vi.fn(),
+    calculateVatReturn: vi.fn(),
+    fileVatReturn: vi.fn(),
+    getVatReturns: vi.fn(),
+    getVatReturn: vi.fn(),
+    deleteVatReturn: vi.fn(),
+    getPdfUrl: vi.fn(),
   },
 }));
 
@@ -241,5 +248,86 @@ describe('AccountingIndex Page Component', () => {
 
     // Verify periods table is active
     expect(screen.getByText('Fiscal Year:')).toBeInTheDocument();
+  });
+
+  it('switches to VAT Return tab and renders VAT calculations', async () => {
+    vi.mocked(accountingApi.calculateVatReturn).mockResolvedValue({
+      success: true,
+      data: {
+        from_date: '2026-01-01',
+        to_date: '2026-01-31',
+        fiscal_period: {
+          id: '01FP000000000000000000001',
+          name: 'January 2026',
+          fiscal_year: 2026,
+          period_number: 1,
+          status: 'open',
+        },
+        summary: {
+          total_sales_taxable_cents: 130000,
+          total_output_vat_cents: 10400,
+          total_sales_gross_cents: 140400,
+          total_purchases_taxable_cents: 50000,
+          total_input_vat_cents: 6500,
+          total_purchases_gross_cents: 56500,
+          net_vat_payable_cents: 3900,
+        },
+        rate_breakdown: [
+          {
+            tax_rate_percent: 13,
+            sales_taxable_cents: 80000,
+            output_vat_cents: 10400,
+            sales_total_cents: 90400,
+            purchases_taxable_cents: 50000,
+            input_vat_cents: 6500,
+            purchases_total_cents: 56500,
+            net_vat_cents: 3900,
+          },
+        ],
+        ledger_reconciliation: {
+          gl_output_vat_cents: 10400,
+          gl_input_vat_cents: 6500,
+          gl_net_vat_cents: 3900,
+          output_vat_discrepancy_cents: 0,
+          input_vat_discrepancy_cents: 0,
+          net_vat_discrepancy_cents: 0,
+          is_reconciled: true,
+        },
+        documents: [
+          {
+            document_type: 'sales_invoice',
+            id: '01INV00000000000000000001',
+            document_number: 'INV-2026-000001',
+            date: '2026-01-10',
+            contact_id: '01CUST000000000000000001',
+            contact_name: 'Acme Client Corp',
+            contact_tax_id: 'VAT-123456789',
+            direction: 'output',
+            subtotal_cents: 150000,
+            tax_cents: 13000,
+            total_cents: 163000,
+            rates: [{ rate_percent: 13, subtotal_cents: 100000, tax_cents: 13000 }],
+          },
+        ],
+      },
+    } as ApiSuccessResponse<VatCalculationResult>);
+
+    render(<AccountingIndex />);
+
+    // Click VAT Return tab
+    const vatTab = screen.getByRole('button', { name: /VAT Return/i });
+    fireEvent.click(vatTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('Calculate Return')).toBeInTheDocument();
+      expect(screen.getByText('Total Output VAT')).toBeInTheDocument();
+      expect(screen.getByText('Total Input VAT')).toBeInTheDocument();
+      expect(screen.getByText('100% Reconciled')).toBeInTheDocument();
+    });
+
+    // Check rate breakdown table
+    expect(screen.getByText('13%')).toBeInTheDocument();
+    expect(screen.getByText('Export PDF')).toBeInTheDocument();
+    expect(screen.getByText('File Return')).toBeInTheDocument();
   });
 });

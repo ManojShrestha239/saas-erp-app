@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (5 of 7 items completed) · Active Task: Fiscal periods with lock/close; manual journals with approval workflow (Completed)
-- **Last Completed Task:** `feat/fiscal-periods-manual-journals`: Implemented fiscal periods (creation, 12-month auto-generation, lock, unlock, irreversible close) with guard preventing any ledger posting/reversal inside locked/closed periods; manual journal workflow (drafts, editing, deletion of unposted entries, submission for approval, balance validation, gap-free sequence assignment strictly upon approval/posting, rejection with audited reason); full accounting frontend interface on `/accounting` (Fiscal Periods, Journal Entries, Chart of Accounts) with TanStack DataTables, `ManualJournalModal`, and `GeneratePeriodsModal`. Full CI gate clean across Pint (449 files), Larastan Level 8 (373 files, 0 errors), Pest (340 tests passed, 2,952 assertions, all Arch tests clean), Vitest (75 tests passed across 17 test files), ESLint, and Vite production build.
-- **Current Focus:** Next task in Phase 5: VAT return calculation by period and rate with document drill-down (`feat/vat-return-calculation`).
-- **Working branch:** `feat/fiscal-periods-manual-journals`
+- **Active Phase:** Phase 5: Financial Ledger, VAT & Adjustments (All 7 of 7 items completed — Phase 5 Complete!) · Active Task: VAT return calculation by period and rate with document drill-down and GL reconciliation (Completed)
+- **Last Completed Task:** `feat/vat-return-calculation`: Implemented VAT return calculation engine across sales invoices, credit notes, supplier bills, and debit notes with rate breakdowns, document drill-down, and double-entry GL reconciliation (Accounts 2120 and 1160); gap-free numbering `VAT-YYYY-000000` upon filing; model-level immutability for filed returns; Browsershot PDF export; frontend `/accounting` VAT Return & Tax tab with KPI cards, rate breakdown table, document drill-down table, filing modal, and history modal. Full CI gate clean across Pint (461 files), Larastan Level 8 (380 files, 0 errors), Pest (346 tests passed, 3,025 assertions, all 12 Arch tests clean), Vitest (76 tests passed across 17 test files), ESLint, and Vite production build.
+- **Current Focus:** Transition to Phase 6: Super Admin Panel, Reports & Audit Logs (Item 1: Super Admin dashboard & tenant package management).
+- **Working branch:** `feat/vat-return-calculation`
 
 ## Architectural Decisions (Decision Log)
 
@@ -63,6 +63,7 @@
 | 41  | Continuous Moving Weighted Average Inventory Costing & Real-time Valuation Engine in `Modules\Inventory` (`feat/inventory-costing-weighted-average`): Continuous moving average recalculation triggered atomically inside `StockService::recordMovement` upon inbound receipts (`PurchaseReceipt`, positive `StockAdjusted` with costs) using formula $\lfloor\frac{(Q_{current} \times C_{current}) + (Q_{in} \times C_{in})}{Q_{current} + Q_{in}} + 0.5\rfloor$; outbound movements (sales delivery, negative adjustments) strictly consume current moving unit cost without modifying product unit cost; both `StockLevel` and `Product` locked under `lockForUpdate()`; integration with `DocumentPostingService` guarantees COGS and Inventory Asset ledger entries automatically reflect accurate AVCO valuation. | Concurrency-safe, mathematically sound inventory valuation without float rounding drift; avoids static catalog price distortion in COGS ledger postings; strictly encapsulated within `Modules\Inventory` without cross-module model bleeding. |
 | 42  | Credit Notes and Debit Notes Architecture (`feat/credit-debit-notes`): Customer Credit Notes in `Modules\Sales` and Supplier Debit Notes in `Modules\Purchasing` with ULID PKs, status lifecycle (`draft` → `posted` → `void`), and model-level immutability. Gap-free document numbering (`CN-YYYY-000000`, `DN-YYYY-000000`), integer minor units (`*_cents` BIGINT). Atomic posting inside `DB::connection('tenant')->transaction(..., 3)`: Credit Note reduces linked invoice `amount_due_cents`, restocks inventory via `StockMovementType::SalesReturn`, recalculates AVCO if cost > 0, and generates double-entry GL journal in `DocumentPostingService::postCreditNote` (Debit Sales Revenue `4110`, Debit Output VAT `2120`, Debit Inventory Asset `1150`; Credit Accounts Receivable `1130`, Credit COGS `5100`). Debit Note reduces linked bill `amount_due_cents`, decrements inventory via `StockMovementType::PurchaseReturn` respecting `allow_negative_stock`, and generates double-entry GL journal in `DocumentPostingService::postDebitNote` (Debit Accounts Payable `2110`; Credit Inventory Asset `1150`, Credit Input VAT `1160`). Integration into `ContactStatementService` for customer/supplier ledger statements. Frontend TanStack DataTables and modals (`CreditNoteModal`, `DebitNoteModal`) with view and create workflows. | Concurrency-safe, mathematically sound return adjustments with complete stock, subledger, and General Ledger synchronization; enforces model immutability and strict ArchTest boundaries without floating-point math. |
 | 43  | Fiscal Periods & Manual Journal Approval Workflow (`feat/fiscal-periods-manual-journals`): `fiscal_periods` table with ULID PK, tenant isolation, and status (`open`, `locked`, `closed`). `assertPeriodOpen` integrated into `JournalEntryService::post` and `reverse`, rejecting transactions falling into locked or closed periods with `ApiException::badRequest` (`FISCAL_PERIOD_LOCKED` / `FISCAL_PERIOD_CLOSED`). Closing is permanent and irreversible. Manual journals support full approval lifecycle (`draft` → `pending_approval` → `posted` / `rejected`). Drafts/rejected entries do not consume sequential numbering (`entry_number` nullable until post) and can be modified or deleted. Gap-free numbering `JRN-YYYY-000000` is assigned atomically inside tenant transaction upon approval or posting. Posted entries remain strictly immutable (corrections via reversals only). Frontend `/accounting` interface with TanStack DataTables, interactive tabs, `ManualJournalModal`, and `GeneratePeriodsModal`. | Enforces financial period boundaries and legal accounting close standards; prevents post-close ledger tampering; decouples draft preparation from sequential numbering consumption; guarantees gap-free sequence integrity and full auditability. |
+| 44  | VAT Return Calculation, GL Reconciliation & Filing Architecture (`feat/vat-return-calculation`): Live calculation engine querying Sales Invoices, Sales Credit Notes, Supplier Bills, and Supplier Debit Notes via typed service query methods (preserves ArchTest module isolation); integer cents math (`sales_taxable_cents`, `output_vat_cents`, `purchases_taxable_cents`, `input_vat_cents`, `net_vat_cents`); rate breakdown JSONB aggregation; General Ledger reconciliation comparing calculated output/input VAT against GL Account 2120 (Output VAT) and Account 1160 (Input VAT), asserting `is_reconciled`; gap-free numbering `VAT-YYYY-000000` upon filing with model-level immutability; Browsershot PDF generation; React frontend tab with KPI summary cards, rate breakdown table, and drilldown document table. | Provides statutory tax reporting and audit compliance; guarantees double-entry reconciliation between source commercial documents and the General Ledger; eliminates float rounding errors; ensures immutability of filed statutory declarations. |
 
 ## Conventions Locked In
 
@@ -83,28 +84,38 @@
 
 ## Next Steps
 
-1. VAT return calculation by period and rate with document drill-down (`feat/vat-return-calculation`).
-2. Bank / Cash reconciliation.
-3. Super Admin Panel & Reports (Phase 6).
+1. Phase 6 Item 1: Super Admin dashboard & tenant package management (`feat/super-admin-panel`).
+2. Phase 6 Item 2: Package limit and feature-flag enforcement middleware.
+3. Phase 6 Item 3: Immutable audit logs (Spatie Activitylog in tenant DB + central `global_audit_logs`).
+4. Phase 6 Item 4: Financial reports (P&L, Balance Sheet, Trial Balance).
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Accounting/Database/Migrations/2026_11_02_000001_create_accounting_fiscal_periods_table.php`
-- `backend/Modules/Accounting/Database/Migrations/2026_11_02_000002_add_workflow_status_to_journal_entries_table.php`
-- `backend/Modules/Accounting/Models/FiscalPeriod.php`
-- `backend/Modules/Accounting/Models/JournalEntry.php`
-- `backend/Modules/Accounting/Services/FiscalPeriodService.php`
-- `backend/Modules/Accounting/Services/JournalEntryService.php`
-- `backend/Modules/Accounting/Http/Controllers/FiscalPeriodController.php`
-- `backend/Modules/Accounting/Http/Controllers/JournalEntryController.php`
+- `backend/Modules/Accounting/Database/Migrations/2026_11_02_000003_create_accounting_vat_returns_table.php`
+- `backend/Modules/Accounting/Enums/VatReturnStatus.php`
+- `backend/Modules/Accounting/Models/VatReturn.php`
+- `backend/Modules/Accounting/Policies/VatReturnPolicy.php`
+- `backend/Modules/Accounting/DTOs/CalculateVatReturnData.php`
+- `backend/Modules/Accounting/DTOs/FileVatReturnData.php`
+- `backend/Modules/Accounting/Services/VatReturnService.php`
+- `backend/Modules/Accounting/Http/Controllers/VatReturnController.php`
+- `backend/Modules/Accounting/resources/views/pdf/vat_return.blade.php`
+- `backend/tests/Feature/Accounting/VatReturnTest.php`
+- `frontend/src/features/accounting/types/accounting.types.ts`
+- `frontend/src/features/accounting/api/accountingApi.ts`
+- `frontend/src/features/accounting/components/VatReturnTab.tsx`
+- `frontend/src/features/accounting/components/VatRateBreakdownTable.tsx`
+- `frontend/src/features/accounting/components/VatDocumentDrilldownTable.tsx`
+- `frontend/src/features/accounting/components/FileVatReturnModal.tsx`
+- `frontend/src/features/accounting/components/FiledReturnsModal.tsx`
 - `frontend/src/features/accounting/pages/AccountingIndex.tsx`
-- `frontend/src/features/accounting/components/FiscalPeriodsTable.tsx`
-- `frontend/src/features/accounting/components/JournalEntriesTable.tsx`
-- `frontend/src/features/accounting/components/ManualJournalModal.tsx`
+- `frontend/src/features/accounting/pages/__tests__/AccountingIndex.test.tsx`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-02`: `feat/vat-return-calculation`: Implemented VAT return calculation engine across sales invoices, credit notes, supplier bills, and debit notes with rate breakdowns, document drill-down, and double-entry GL reconciliation (Accounts 2120 and 1160); gap-free numbering `VAT-YYYY-000000` upon filing; model-level immutability for filed returns; Browsershot PDF export; frontend `/accounting` VAT Return & Tax tab with KPI cards, rate breakdown table, document drill-down table, filing modal, and history modal. Full CI gate clean across Pint (461 files), Larastan Level 8 (380 files, 0 errors), Pest (346 tests passed, 3,025 assertions, all 12 Arch tests clean), Vitest (76 tests passed across 17 test files), ESLint, and Vite production build. Ticked Phase 5 seventh item — Phase 5 Complete!
 
 - `2026-11-02`: `feat/fiscal-periods-manual-journals`: Implemented fiscal periods (creation, 12-month auto-generation, lock, unlock, irreversible close) with guard preventing any ledger posting/reversal inside locked/closed periods; manual journal workflow (drafts, editing, deletion of unposted entries, submission for approval, balance validation, gap-free sequence assignment strictly upon approval/posting, rejection with audited reason); full accounting frontend interface on `/accounting` (Fiscal Periods, Journal Entries, Chart of Accounts) with TanStack DataTables, `ManualJournalModal`, and `GeneratePeriodsModal`. Full CI gate clean across Pint (449 files), Larastan Level 8 (373 files, 0 errors), Pest (340 tests passed, 2,952 assertions, all Arch tests clean), Vitest (75 tests passed across 17 test files), ESLint, and Vite production build. Ticked Phase 5 sixth item.
 - `2026-11-01`: `feat/credit-debit-notes`: Implemented customer Credit Notes (`Modules/Sales`) and supplier Debit Notes (`Modules/Purchasing`) with status lifecycle (`draft` → `posted` → `void`), model-level immutability, gap-free numbering (`CN-YYYY-000000`, `DN-YYYY-000000`), integer minor units (`*_cents` BIGINT). Atomic posting inside tenant database transactions: Credit Notes restock inventory via `StockMovementType::SalesReturn`, reduce invoice `amount_due_cents`, and trigger GL posting via `DocumentPostingService::postCreditNote` (Debit Sales Revenue `4110`, Output VAT `2120`, Inventory Asset `1150`; Credit AR `1130`, COGS `5100`). Debit Notes reduce supplier bill `amount_due_cents`, decrement inventory via `StockMovementType::PurchaseReturn` respecting negative stock settings, and post to GL via `DocumentPostingService::postDebitNote` (Debit AP `2110`; Credit Inventory Asset `1150`, Input VAT `1160`). Integrated into `ContactStatementService` chronological statements. Built frontend tabbed TanStack DataTables and modals (`CreditNoteModal`, `DebitNoteModal`) with view and issue flows. 100% CI gate passing across Pint (432 files clean), Larastan Level 8 (0 errors across 359 files), Pest (325 passed, 2,861 assertions), Vitest (71 passed across 16 test files), ESLint, TypeScript, and Vite production build. Ticked Phase 5 fifth item.

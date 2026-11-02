@@ -60,7 +60,7 @@
 - [x] Inventory costing (weighted average unless Open Questions say otherwise).
 - [x] Credit Notes and Debit Notes (stock + ledger + balance effects).
 - [x] Fiscal periods with lock/close; manual journals.
-- [ ] VAT return calculation by period and rate with document drill-down.
+- [x] VAT return calculation by period and rate with document drill-down.
 - **Exit criteria:** trial balance always zero-sum; VAT return reconciles to ledger; sub-ledgers reconcile to control accounts.
 
 ## Phase 6: Super Admin Panel, Reports & Audit Logs

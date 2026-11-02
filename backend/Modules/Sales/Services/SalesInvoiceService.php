@@ -709,4 +709,80 @@ final class SalesInvoiceService
             'transactions' => $transactions,
         ];
     }
+
+    /**
+     * @return list<array{
+     *     id: string,
+     *     document_number: string,
+     *     customer_id: string,
+     *     issue_date: string,
+     *     status: string,
+     *     currency: string,
+     *     subtotal_cents: int,
+     *     tax_cents: int,
+     *     total_cents: int,
+     *     items: list<array{
+     *         id: string,
+     *         product_id: string,
+     *         description: ?string,
+     *         quantity: int,
+     *         unit_price_cents: int,
+     *         tax_rate_percent: int,
+     *         tax_category: ?string,
+     *         subtotal_cents: int,
+     *         tax_cents: int,
+     *         total_cents: int
+     *     }>
+     * }>
+     */
+    public function getVatReportData(Carbon $startDate, Carbon $endDate): array
+    {
+        $validStatuses = [
+            SalesInvoiceStatus::Posted,
+            SalesInvoiceStatus::PartiallyPaid,
+            SalesInvoiceStatus::Paid,
+        ];
+
+        $invoices = SalesInvoice::with('items')
+            ->whereIn('status', $validStatuses)
+            ->whereDate('issue_date', '>=', $startDate->toDateString())
+            ->whereDate('issue_date', '<=', $endDate->toDateString())
+            ->orderBy('issue_date', 'asc')
+            ->orderBy('invoice_number', 'asc')
+            ->get();
+
+        $result = [];
+        foreach ($invoices as $invoice) {
+            $items = [];
+            foreach ($invoice->items as $item) {
+                $items[] = [
+                    'id' => (string) $item->id,
+                    'product_id' => (string) $item->product_id,
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_price_cents' => $item->unit_price_cents,
+                    'tax_rate_percent' => $item->tax_rate_percent,
+                    'tax_category' => $item->tax_category,
+                    'subtotal_cents' => $item->subtotal_cents,
+                    'tax_cents' => $item->tax_cents,
+                    'total_cents' => $item->total_cents,
+                ];
+            }
+
+            $result[] = [
+                'id' => (string) $invoice->id,
+                'document_number' => $invoice->invoice_number,
+                'customer_id' => (string) $invoice->customer_id,
+                'issue_date' => Carbon::parse($invoice->issue_date)->toDateString(),
+                'status' => $invoice->status->value,
+                'currency' => $invoice->currency,
+                'subtotal_cents' => $invoice->subtotal_cents,
+                'tax_cents' => $invoice->tax_cents,
+                'total_cents' => $invoice->total_cents,
+                'items' => $items,
+            ];
+        }
+
+        return $result;
+    }
 }
