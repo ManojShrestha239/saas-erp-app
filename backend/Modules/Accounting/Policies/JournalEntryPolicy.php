@@ -25,6 +25,31 @@ final class JournalEntryPolicy
         return $this->canManage($user);
     }
 
+    public function update(Authorizable $user, JournalEntry $entry): bool
+    {
+        return $this->canManage($user) && ($entry->isDraft() || $entry->isRejected());
+    }
+
+    public function delete(Authorizable $user, JournalEntry $entry): bool
+    {
+        return $this->canManage($user) && ($entry->isDraft() || $entry->isRejected());
+    }
+
+    public function submit(Authorizable $user, JournalEntry $entry): bool
+    {
+        return $this->canManage($user) && ($entry->isDraft() || $entry->isRejected());
+    }
+
+    public function approve(Authorizable $user, JournalEntry $entry): bool
+    {
+        return $this->canManage($user) && ($entry->isPendingApproval() || $entry->isDraft());
+    }
+
+    public function reject(Authorizable $user, JournalEntry $entry): bool
+    {
+        return $this->canManage($user) && $entry->isPendingApproval();
+    }
+
     public function reverse(Authorizable $user, JournalEntry $entry): bool
     {
         return $this->canManage($user);

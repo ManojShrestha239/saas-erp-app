@@ -27,16 +27,22 @@ final class JournalEntryService
     public function __construct(
         private readonly DatabaseManager $db,
         private readonly DocumentNumberingService $documentNumberingService,
+        private readonly FiscalPeriodService $fiscalPeriodService,
     ) {}
 
     /**
-     * Post a new balanced General Ledger journal entry.
+     * Post a new balanced General Ledger journal entry, or create a draft.
      *
      * @throws ImbalancedJournalEntryException
      * @throws ApiException
      */
     public function post(PostJournalEntryData $data): JournalEntry
     {
+        if ($data->status === JournalEntryStatus::Draft) {
+            return $this->createDraft($data);
+        }
+
+        $this->fiscalPeriodService->assertPeriodOpen($data->entryDate);
         $this->validateLines($data->lines);
 
         $accountIds = array_values(array_unique(array_map(
@@ -123,6 +129,317 @@ final class JournalEntryService
     }
 
     /**
+     * Create an unposted draft journal entry without consuming a sequential document number.
+     */
+    public function createDraft(PostJournalEntryData $data): JournalEntry
+    {
+        $accountIds = array_values(array_unique(array_map(
+            static fn (JournalEntryLineData $line): string => $line->accountId,
+            $data->lines,
+        )));
+
+        /** @var Collection<int, Account> $accounts */
+        $accounts = Account::whereIn('id', $accountIds)->get();
+
+        if ($accounts->count() !== count($accountIds)) {
+            $existingIds = $accounts->pluck('id')->all();
+            $missingIds = array_values(array_diff($accountIds, $existingIds));
+
+            throw ApiException::unprocessable(
+                'One or more accounts referenced in the journal entry do not exist.',
+                'ACCOUNT_NOT_FOUND',
+                ['missing_account_ids' => $missingIds]
+            );
+        }
+
+        $totalDebitCents = array_sum(array_map(
+            static fn (JournalEntryLineData $line): int => $line->debitCents,
+            $data->lines
+        ));
+
+        $totalCreditCents = array_sum(array_map(
+            static fn (JournalEntryLineData $line): int => $line->creditCents,
+            $data->lines
+        ));
+
+        return $this->db->connection('tenant')->transaction(function () use (
+            $data,
+            $totalDebitCents,
+            $totalCreditCents
+        ): JournalEntry {
+            /** @var JournalEntry $journalEntry */
+            $journalEntry = JournalEntry::create([
+                'entry_number' => null,
+                'entry_date' => $data->entryDate->toDateString(),
+                'posting_date' => null,
+                'status' => JournalEntryStatus::Draft,
+                'description' => $data->description,
+                'source_type' => $data->sourceType,
+                'source_id' => $data->sourceId,
+                'total_debit_cents' => $totalDebitCents,
+                'total_credit_cents' => $totalCreditCents,
+                'currency' => $data->currency,
+                'created_by_user_id' => $data->userId,
+            ]);
+
+            foreach ($data->lines as $index => $line) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $journalEntry->id,
+                    'account_id' => $line->accountId,
+                    'line_number' => $index + 1,
+                    'debit_cents' => $line->debitCents,
+                    'credit_cents' => $line->creditCents,
+                    'description' => $line->description,
+                ]);
+            }
+
+            return $journalEntry->load(['lines.account']);
+        }, 3);
+    }
+
+    /**
+     * Update an editable draft or rejected manual journal entry.
+     */
+    public function updateDraft(string $id, PostJournalEntryData $data): JournalEntry
+    {
+        $entry = $this->findById($id);
+        if ($entry === null) {
+            throw ApiException::notFound("Journal entry {$id} not found.", 'JOURNAL_NOT_FOUND');
+        }
+
+        if (! $entry->isDraft() && ! $entry->isRejected()) {
+            throw ApiException::badRequest(
+                'Only draft or rejected journal entries can be modified.',
+                'IMMUTABLE_JOURNAL_ENTRY'
+            );
+        }
+
+        $accountIds = array_values(array_unique(array_map(
+            static fn (JournalEntryLineData $line): string => $line->accountId,
+            $data->lines,
+        )));
+
+        /** @var Collection<int, Account> $accounts */
+        $accounts = Account::whereIn('id', $accountIds)->get();
+
+        if ($accounts->count() !== count($accountIds)) {
+            $existingIds = $accounts->pluck('id')->all();
+            $missingIds = array_values(array_diff($accountIds, $existingIds));
+
+            throw ApiException::unprocessable(
+                'One or more accounts referenced in the journal entry do not exist.',
+                'ACCOUNT_NOT_FOUND',
+                ['missing_account_ids' => $missingIds]
+            );
+        }
+
+        $totalDebitCents = array_sum(array_map(
+            static fn (JournalEntryLineData $line): int => $line->debitCents,
+            $data->lines
+        ));
+
+        $totalCreditCents = array_sum(array_map(
+            static fn (JournalEntryLineData $line): int => $line->creditCents,
+            $data->lines
+        ));
+
+        return $this->db->connection('tenant')->transaction(function () use (
+            $entry,
+            $data,
+            $totalDebitCents,
+            $totalCreditCents
+        ): JournalEntry {
+            $entry->lines()->delete();
+
+            $entry->update([
+                'entry_date' => $data->entryDate->toDateString(),
+                'description' => $data->description,
+                'currency' => $data->currency,
+                'total_debit_cents' => $totalDebitCents,
+                'total_credit_cents' => $totalCreditCents,
+                'status' => JournalEntryStatus::Draft,
+                'rejection_reason' => null,
+            ]);
+
+            foreach ($data->lines as $index => $line) {
+                JournalEntryLine::create([
+                    'journal_entry_id' => $entry->id,
+                    'account_id' => $line->accountId,
+                    'line_number' => $index + 1,
+                    'debit_cents' => $line->debitCents,
+                    'credit_cents' => $line->creditCents,
+                    'description' => $line->description,
+                ]);
+            }
+
+            $entry->refresh()->load(['lines.account']);
+
+            return $entry;
+        }, 3);
+    }
+
+    /**
+     * Submit a draft or rejected journal entry for approval.
+     */
+    public function submitForApproval(string $id, ?string $userId = null): JournalEntry
+    {
+        $entry = $this->findById($id);
+        if ($entry === null) {
+            throw ApiException::notFound("Journal entry {$id} not found.", 'JOURNAL_NOT_FOUND');
+        }
+
+        if (! $entry->isDraft() && ! $entry->isRejected()) {
+            throw ApiException::badRequest(
+                'Only draft or rejected journal entries can be submitted for approval.',
+                'INVALID_STATUS'
+            );
+        }
+
+        if ($entry->total_debit_cents !== $entry->total_credit_cents || $entry->total_debit_cents <= 0) {
+            throw new ImbalancedJournalEntryException(
+                'Journal entry lines must balance before submitting for approval.'
+            );
+        }
+
+        $lines = $entry->lines;
+        if ($lines->count() < 2) {
+            throw new ImbalancedJournalEntryException(
+                'A journal entry must contain at least two lines for double-entry bookkeeping.'
+            );
+        }
+
+        $entry->update([
+            'status' => JournalEntryStatus::PendingApproval,
+            'submitted_by_user_id' => $userId,
+            'submitted_at' => now(),
+        ]);
+
+        $entry->refresh()->load(['lines.account']);
+
+        return $entry;
+    }
+
+    /**
+     * Approve and post a pending or draft journal entry.
+     */
+    public function approve(string $id, ?string $userId = null): JournalEntry
+    {
+        $entry = $this->findById($id);
+        if ($entry === null) {
+            throw ApiException::notFound("Journal entry {$id} not found.", 'JOURNAL_NOT_FOUND');
+        }
+
+        if (! $entry->isPendingApproval() && ! $entry->isDraft()) {
+            throw ApiException::badRequest(
+                'Only pending or draft journal entries can be approved and posted.',
+                'INVALID_STATUS'
+            );
+        }
+
+        if ($entry->total_debit_cents !== $entry->total_credit_cents || $entry->total_debit_cents <= 0) {
+            throw new ImbalancedJournalEntryException(
+                'Journal entry lines must balance before posting.'
+            );
+        }
+
+        $this->fiscalPeriodService->assertPeriodOpen($entry->entry_date);
+
+        // Verify all accounts active
+        foreach ($entry->lines as $line) {
+            if (! $line->account->is_active) {
+                throw ApiException::badRequest(
+                    "Cannot post to inactive account: {$line->account->code} - {$line->account->name}.",
+                    'ACCOUNT_INACTIVE'
+                );
+            }
+        }
+
+        return $this->db->connection('tenant')->transaction(function () use ($entry, $userId): JournalEntry {
+            $entryYear = (int) $entry->entry_date->format('Y');
+
+            $entryNumber = $this->documentNumberingService->generateNext(
+                type: DocumentType::JournalEntry,
+                year: $entryYear,
+            );
+
+            $entry->update([
+                'entry_number' => $entryNumber,
+                'status' => JournalEntryStatus::Posted,
+                'posting_date' => now(),
+                'approved_by_user_id' => $userId,
+                'approved_at' => now(),
+            ]);
+
+            $tenantId = TenantContext::get() !== null ? (string) TenantContext::get()->id : null;
+            JournalEntryPosted::dispatch($entry, $tenantId, $userId);
+
+            $entry->refresh()->load(['lines.account']);
+
+            return $entry;
+        }, 3);
+    }
+
+    /**
+     * Reject a pending journal entry with a mandatory reason.
+     */
+    public function reject(string $id, string $reason, ?string $userId = null): JournalEntry
+    {
+        $entry = $this->findById($id);
+        if ($entry === null) {
+            throw ApiException::notFound("Journal entry {$id} not found.", 'JOURNAL_NOT_FOUND');
+        }
+
+        if (! $entry->isPendingApproval()) {
+            throw ApiException::badRequest(
+                'Only journal entries pending approval can be rejected.',
+                'INVALID_STATUS'
+            );
+        }
+
+        $trimmedReason = trim($reason);
+        if ($trimmedReason === '') {
+            throw ApiException::unprocessable(
+                'A mandatory reason is required to reject a journal entry.',
+                'REASON_REQUIRED'
+            );
+        }
+
+        $entry->update([
+            'status' => JournalEntryStatus::Rejected,
+            'rejection_reason' => $trimmedReason,
+            'rejected_by_user_id' => $userId,
+            'rejected_at' => now(),
+        ]);
+
+        $entry->refresh()->load(['lines.account']);
+
+        return $entry;
+    }
+
+    /**
+     * Delete an unposted draft or rejected journal entry.
+     */
+    public function deleteDraft(string $id): void
+    {
+        $entry = $this->findById($id);
+        if ($entry === null) {
+            throw ApiException::notFound("Journal entry {$id} not found.", 'JOURNAL_NOT_FOUND');
+        }
+
+        if (! $entry->isDraft() && ! $entry->isRejected()) {
+            throw ApiException::badRequest(
+                'Only draft or rejected journal entries can be deleted.',
+                'IMMUTABLE_JOURNAL_ENTRY'
+            );
+        }
+
+        $this->db->connection('tenant')->transaction(function () use ($entry): void {
+            $entry->lines()->delete();
+            $entry->delete();
+        }, 3);
+    }
+
+    /**
      * Reverse an existing posted journal entry by creating an exact inverse entry.
      *
      * @throws ApiException
@@ -149,6 +466,7 @@ final class JournalEntryService
         }
 
         $date = $reversalDate ?? now();
+        $this->fiscalPeriodService->assertPeriodOpen($date);
 
         return $this->db->connection('tenant')->transaction(function () use (
             $entry,
@@ -166,11 +484,6 @@ final class JournalEntryService
                 );
             }
 
-            /** @var Collection<int, JournalEntryLine> $originalLines */
-            $originalLines = JournalEntryLine::where('journal_entry_id', $original->id)
-                ->orderBy('line_number')
-                ->get();
-
             $entryYear = (int) $date->format('Y');
 
             $reversalNumber = $this->documentNumberingService->generateNext(
@@ -187,27 +500,27 @@ final class JournalEntryService
                 'description' => "Reversal of {$original->entry_number}: {$trimmedReason}",
                 'source_type' => $original->source_type,
                 'source_id' => $original->source_id,
-                'total_debit_cents' => $original->total_debit_cents,
-                'total_credit_cents' => $original->total_credit_cents,
+                'total_debit_cents' => $original->total_credit_cents,
+                'total_credit_cents' => $original->total_debit_cents,
                 'currency' => $original->currency,
                 'created_by_user_id' => $userId,
                 'reversal_of_id' => $original->id,
                 'reversal_reason' => $trimmedReason,
             ]);
 
+            $originalLines = $original->lines()->orderBy('line_number')->get();
+
             foreach ($originalLines as $index => $line) {
                 JournalEntryLine::create([
                     'journal_entry_id' => $reversalEntry->id,
                     'account_id' => $line->account_id,
                     'line_number' => $index + 1,
-                    // Invert debit and credit
                     'debit_cents' => $line->credit_cents,
                     'credit_cents' => $line->debit_cents,
                     'description' => "Reversal: {$line->description}",
                 ]);
             }
 
-            // Update original journal status to reversed
             $original->update([
                 'status' => JournalEntryStatus::Reversed,
                 'reversed_by_id' => $reversalEntry->id,
@@ -217,13 +530,11 @@ final class JournalEntryService
             $tenantId = TenantContext::get() !== null ? (string) TenantContext::get()->id : null;
             JournalEntryReversed::dispatch($original, $reversalEntry, $trimmedReason, $tenantId, $userId);
 
-            return $reversalEntry->load(['lines.account', 'reversalOf']);
+            return $reversalEntry->load(['lines.account']);
         }, 3);
     }
 
     /**
-     * Paginated list of journal entries.
-     *
      * @param  array{
      *     status?: string|null,
      *     source_type?: string|null,
@@ -288,19 +599,17 @@ final class JournalEntryService
         return JournalEntry::with(['lines.account', 'reversalOf', 'reversedBy'])->find($id);
     }
 
-    public function findByNumber(string $entryNumber): ?JournalEntry
-    {
-        return JournalEntry::with(['lines.account', 'reversalOf', 'reversedBy'])
-            ->where('entry_number', $entryNumber)
-            ->first();
-    }
-
-    public function findForSource(string $sourceType, string $sourceId): ?JournalEntry
+    public function findBySource(string $sourceType, string $sourceId): ?JournalEntry
     {
         return JournalEntry::with(['lines.account', 'reversalOf', 'reversedBy'])
             ->where('source_type', $sourceType)
             ->where('source_id', $sourceId)
             ->first();
+    }
+
+    public function findForSource(string $sourceType, string $sourceId): ?JournalEntry
+    {
+        return $this->findBySource($sourceType, $sourceId);
     }
 
     /**

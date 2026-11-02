@@ -53,7 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Payments', href: '/supplier-payments', icon: Wallet, id: 'supplier-payments', permission: 'payments.supplier.bills' },
   { name: 'Contacts', href: '/contacts', icon: Users, id: 'contacts', permission: 'contacts.view' },
   { name: 'Users', href: '/users', icon: Users, id: 'users', permission: 'users.manage' },
-  { name: 'Accounting', href: '/accounting', icon: BookOpen, id: 'accounting', permission: 'finance.view' },
+  { name: 'Accounting', href: '/accounting', icon: BookOpen, id: 'accounting', permission: 'accounting.manage' },
   { name: 'Reports', href: '/reports', icon: BarChart3, id: 'reports', permission: 'reports.view' },
   { name: 'Settings', href: '/settings', icon: Settings, id: 'settings', permission: 'settings.manage' },
 ];

@@ -59,7 +59,7 @@
 - [x] Wire Phase 3/4 documents to real journal postings (AR, revenue, output/input VAT, COGS, inventory, AP).
 - [x] Inventory costing (weighted average unless Open Questions say otherwise).
 - [x] Credit Notes and Debit Notes (stock + ledger + balance effects).
-- [ ] Fiscal periods with lock/close; manual journals.
+- [x] Fiscal periods with lock/close; manual journals.
 - [ ] VAT return calculation by period and rate with document drill-down.
 - **Exit criteria:** trial balance always zero-sum; VAT return reconciles to ledger; sub-ledgers reconcile to control accounts.
 

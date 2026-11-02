@@ -9,7 +9,6 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Inventory\DTOs\CostHistoryItemData;
 use Modules\Inventory\DTOs\ProductValuationData;
 use Modules\Inventory\DTOs\ValuationSummaryData;
-use Modules\Inventory\Enums\StockMovementType;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\StockLevel;
 use Modules\Inventory\Models\StockMovement;
@@ -53,10 +52,6 @@ final class InventoryCostingService
         $incomingValuationCents = $incomingQuantity * $incomingUnitCostCents;
 
         $newTotalQuantity = $currentQuantity + $incomingQuantity;
-        if ($newTotalQuantity <= 0) {
-            return max(0, $incomingUnitCostCents);
-        }
-
         $totalValuationCents = $existingValuationCents + $incomingValuationCents;
 
         // Integer minor units with mathematical rounding
@@ -171,7 +166,8 @@ final class InventoryCostingService
 
             foreach ($product->stockLevels as $level) {
                 $qty = $level->quantity_on_hand;
-                $wName = $warehouses->get($level->warehouse_id)?->name ?? 'Warehouse';
+                $warehouseModel = $warehouses->get($level->warehouse_id);
+                $wName = $warehouseModel !== null ? $warehouseModel->name : 'Warehouse';
 
                 if ($filters['warehouse_id'] ?? null) {
                     if ($level->warehouse_id === $filters['warehouse_id']) {
@@ -218,8 +214,8 @@ final class InventoryCostingService
         }
 
         // Apply in-memory sort on computed fields
-        $sortField = $sort['field'] ?? 'name';
-        $direction = strtolower($sort['direction'] ?? 'asc') === 'desc' ? 'desc' : 'asc';
+        $sortField = $sort['field'];
+        $direction = strtolower($sort['direction']) === 'desc' ? 'desc' : 'asc';
 
         usort($items, function (ProductValuationData $a, ProductValuationData $b) use ($sortField, $direction): int {
             $valA = match ($sortField) {
@@ -289,13 +285,11 @@ final class InventoryCostingService
             $qtyDelta = $m->quantity;
             $unitCost = $m->unit_cost_cents;
 
-            $movementType = $m->type instanceof StockMovementType
-                ? $m->type
-                : StockMovementType::tryFrom((string) $m->type);
-            $typeLabel = $movementType?->label() ?? (string) $m->type;
-            $typeValue = $movementType?->value ?? (string) $m->type;
+            $movementType = $m->type;
+            $typeLabel = $movementType->label();
+            $typeValue = $movementType->value;
 
-            if ($movementType?->isAddition()) {
+            if ($movementType->isAddition()) {
                 $runningAverageCost = $this->calculateMovingWeightedAverage(
                     currentQuantity: $runningStock,
                     currentUnitCostCents: $runningAverageCost,
@@ -307,12 +301,14 @@ final class InventoryCostingService
             $runningStock += $qtyDelta;
             $resultingValuation = $runningStock * $runningAverageCost;
 
+            $warehouseName = $m->warehouse->name;
+
             $history[] = new CostHistoryItemData(
                 movementId: $m->id,
                 createdAt: $m->created_at->toIso8601String(),
                 type: $typeValue,
                 typeLabel: $typeLabel,
-                warehouseName: $m->warehouse?->name ?? 'Unknown',
+                warehouseName: $warehouseName,
                 quantityDelta: $qtyDelta,
                 movementUnitCostCents: $unitCost,
                 sourceType: $m->source_type,

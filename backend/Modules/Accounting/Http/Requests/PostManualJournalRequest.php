@@ -11,7 +11,6 @@ final class PostManualJournalRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        // Authorization is handled via Policies / permissions
         return true;
     }
 
@@ -22,15 +21,16 @@ final class PostManualJournalRequest extends FormRequest
     {
         return [
             'entry_date' => ['required', 'date'],
+            'status' => ['nullable', 'string', 'in:draft,pending_approval,posted'],
             'description' => ['nullable', 'string', 'max:1000'],
             'source_type' => ['nullable', 'string', 'max:255'],
             'source_id' => ['nullable', 'string', 'max:255'],
-            'currency' => ['required', 'string', 'size:3'],
+            'currency' => ['nullable', 'string', 'size:3'],
             'user_id' => ['nullable', 'string', 'max:36'],
             'lines' => ['required', 'array', 'min:2'],
             'lines.*.account_id' => ['required', 'string', 'max:36'],
-            'lines.*.debit_cents' => ['required_without:lines.*.credit_cents', 'integer', 'min:0'],
-            'lines.*.credit_cents' => ['required_without:lines.*.debit_cents', 'integer', 'min:0'],
+            'lines.*.debit_cents' => ['nullable', 'integer', 'min:0'],
+            'lines.*.credit_cents' => ['nullable', 'integer', 'min:0'],
             'lines.*.description' => ['nullable', 'string', 'max:500'],
         ];
     }

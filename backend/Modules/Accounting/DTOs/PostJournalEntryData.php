@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Accounting\DTOs;
 
 use Carbon\Carbon;
+use Modules\Accounting\Enums\JournalEntryStatus;
 
 final readonly class PostJournalEntryData
 {
@@ -19,5 +20,6 @@ final readonly class PostJournalEntryData
         public ?string $sourceId = null,
         public string $currency = 'USD',
         public ?string $userId = null,
+        public ?JournalEntryStatus $status = null,
     ) {}
 }

@@ -16,9 +16,9 @@ use Shared\Tenancy\UsesTenantConnection;
 
 /**
  * @property string $id
- * @property string $entry_number
+ * @property string|null $entry_number
  * @property Carbon $entry_date
- * @property Carbon $posting_date
+ * @property Carbon|null $posting_date
  * @property JournalEntryStatus $status
  * @property string|null $description
  * @property string|null $source_type
@@ -27,6 +27,13 @@ use Shared\Tenancy\UsesTenantConnection;
  * @property int $total_credit_cents
  * @property string $currency
  * @property string|null $created_by_user_id
+ * @property string|null $submitted_by_user_id
+ * @property Carbon|null $submitted_at
+ * @property string|null $approved_by_user_id
+ * @property Carbon|null $approved_at
+ * @property string|null $rejected_by_user_id
+ * @property Carbon|null $rejected_at
+ * @property string|null $rejection_reason
  * @property string|null $reversed_by_id
  * @property string|null $reversal_of_id
  * @property string|null $reversal_reason
@@ -59,6 +66,13 @@ final class JournalEntry extends Model
         'total_credit_cents',
         'currency',
         'created_by_user_id',
+        'submitted_by_user_id',
+        'submitted_at',
+        'approved_by_user_id',
+        'approved_at',
+        'rejected_by_user_id',
+        'rejected_at',
+        'rejection_reason',
         'reversed_by_id',
         'reversal_of_id',
         'reversal_reason',
@@ -73,22 +87,39 @@ final class JournalEntry extends Model
         'status' => JournalEntryStatus::class,
         'total_debit_cents' => 'integer',
         'total_credit_cents' => 'integer',
+        'submitted_at' => 'datetime',
+        'approved_at' => 'datetime',
+        'rejected_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
         self::updating(function (self $model): void {
-            $dirtyKeys = array_keys($model->getDirty());
-            $allowedKeys = ['status', 'reversed_by_id', 'reversal_reason', 'updated_at'];
+            $originalStatus = $model->getOriginal('status');
+            $originalStatusValue = $originalStatus instanceof JournalEntryStatus
+                ? $originalStatus->value
+                : (string) $originalStatus;
 
-            $disallowedDirty = array_diff($dirtyKeys, $allowedKeys);
-            if (! empty($disallowedDirty)) {
-                throw new ImmutableJournalEntryException('Posted journal entries are immutable and cannot be updated directly.');
+            if (in_array($originalStatusValue, [JournalEntryStatus::Posted->value, JournalEntryStatus::Reversed->value], true)) {
+                $dirtyKeys = array_keys($model->getDirty());
+                $allowedKeys = ['status', 'reversed_by_id', 'reversal_reason', 'updated_at'];
+
+                $disallowedDirty = array_diff($dirtyKeys, $allowedKeys);
+                if (! empty($disallowedDirty)) {
+                    throw new ImmutableJournalEntryException('Posted journal entries are immutable and cannot be updated directly.');
+                }
             }
         });
 
-        self::deleting(function (): void {
-            throw new ImmutableJournalEntryException('Posted journal entries are immutable and cannot be deleted.');
+        self::deleting(function (self $model): void {
+            $originalStatus = $model->getOriginal('status');
+            $originalStatusValue = $originalStatus instanceof JournalEntryStatus
+                ? $originalStatus->value
+                : (string) $originalStatus;
+
+            if (in_array($originalStatusValue, [JournalEntryStatus::Posted->value, JournalEntryStatus::Reversed->value], true)) {
+                throw new ImmutableJournalEntryException('Posted journal entries are immutable and cannot be deleted.');
+            }
         });
     }
 
@@ -119,5 +150,25 @@ final class JournalEntry extends Model
     public function isReversed(): bool
     {
         return $this->status === JournalEntryStatus::Reversed;
+    }
+
+    public function isPosted(): bool
+    {
+        return $this->status === JournalEntryStatus::Posted;
+    }
+
+    public function isDraft(): bool
+    {
+        return $this->status === JournalEntryStatus::Draft;
+    }
+
+    public function isPendingApproval(): bool
+    {
+        return $this->status === JournalEntryStatus::PendingApproval;
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === JournalEntryStatus::Rejected;
     }
 }
