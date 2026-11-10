@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Routing\Middleware\ThrottleRequestsWithRedis;
+use Illuminate\Routing\Middleware\ValidateSignature;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
@@ -68,6 +69,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'central.domain' => EnsureCentralDomain::class,
             'feature' => EnsureFeatureEnabled::class,
             'package.limit' => EnsurePackageLimit::class,
+            'signed' => ValidateSignature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

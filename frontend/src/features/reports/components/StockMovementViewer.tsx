@@ -7,6 +7,7 @@ import { RefreshCw, ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { reportsApi } from '../api/reportsApi';
 import type { StockMovementData } from '../types/reports.types';
 import { formatDate, formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function StockMovementViewer() {
   const [data, setData] = useState<StockMovementData | null>(null);
@@ -102,6 +103,15 @@ export function StockMovementViewer() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+
+          <ReportExportButtons
+            reportType="stock-movements"
+            filters={{
+              type: movementType || undefined,
+              date_from: dateFrom || undefined,
+              date_to: dateTo || undefined,
+            }}
+          />
         </div>
       </div>
 

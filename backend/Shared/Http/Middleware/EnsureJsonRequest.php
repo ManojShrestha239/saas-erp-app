@@ -17,7 +17,13 @@ final class EnsureJsonRequest
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->hasHeader('Accept') && ! $request->accepts('application/json') && ! $request->accepts('text/event-stream')) {
+        if ($request->hasHeader('Accept')
+            && ! $request->accepts('application/json')
+            && ! $request->accepts('text/event-stream')
+            && ! $request->accepts('application/pdf')
+            && ! $request->accepts('application/octet-stream')
+            && ! $request->accepts('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        ) {
             return ApiResponse::error(
                 message: 'Not Acceptable. Request must accept application/json or text/event-stream.',
                 code: 'NOT_ACCEPTABLE',

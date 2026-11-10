@@ -7,6 +7,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, Calendar, ChevronRight } from '
 import { reportsApi } from '../api/reportsApi';
 import type { ApAgingData, ArAgingData } from '../types/reports.types';
 import { formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function ArApAgingViewer() {
   const [agingMode, setAgingMode] = useState<'ar' | 'ap'>('ar');
@@ -123,6 +124,16 @@ export function ArApAgingViewer() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+
+          <ReportExportButtons
+            reportType={agingMode === 'ar' ? 'ar-aging' : 'ap-aging'}
+            filters={{
+              as_of_date: asOfDate,
+              ...(agingMode === 'ar'
+                ? { customer_id: selectedContactId || undefined }
+                : { supplier_id: selectedContactId || undefined }),
+            }}
+          />
         </div>
       </div>
 

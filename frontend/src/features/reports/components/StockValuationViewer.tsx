@@ -7,6 +7,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, Calendar, Search, Package } fro
 import { reportsApi } from '../api/reportsApi';
 import type { StockValuationData } from '../types/reports.types';
 import { formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function StockValuationViewer() {
   const [data, setData] = useState<StockValuationData | null>(null);
@@ -88,6 +89,11 @@ export function StockValuationViewer() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+
+          <ReportExportButtons
+            reportType="stock-valuation"
+            filters={{ as_of_date: asOfDate, search: search || undefined }}
+          />
         </div>
       </div>
 

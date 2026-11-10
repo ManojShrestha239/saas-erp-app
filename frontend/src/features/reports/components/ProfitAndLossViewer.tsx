@@ -7,6 +7,7 @@ import { RefreshCw, Calendar, TrendingUp, TrendingDown, DollarSign } from 'lucid
 import { reportsApi } from '../api/reportsApi';
 import type { ProfitAndLossData } from '../types/reports.types';
 import { formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function ProfitAndLossViewer() {
   const [data, setData] = useState<ProfitAndLossData | null>(null);
@@ -101,6 +102,10 @@ export function ProfitAndLossViewer() {
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <ReportExportButtons
+              reportType="profit-and-loss"
+              filters={{ start_date: startDate, end_date: endDate }}
+            />
           </div>
         </div>
       </div>

@@ -4,7 +4,9 @@ import type {
   ApAgingData,
   ArAgingData,
   BalanceSheetData,
+  CreateReportExportRequest,
   ProfitAndLossData,
+  ReportExportResponse,
   StockMovementData,
   StockValuationData,
   TrialBalanceData,
@@ -84,5 +86,13 @@ export const reportsApi = {
     return apiClient.get<StockMovementData>('/reports/stock-movements', {
       params: params as Record<string, string | number | boolean | undefined | null>,
     });
+  },
+
+  requestExport: (payload: CreateReportExportRequest): Promise<ApiSuccessResponse<ReportExportResponse>> => {
+    return apiClient.post<ReportExportResponse>('/reports/exports', payload);
+  },
+
+  getExportStatus: (id: string): Promise<ApiSuccessResponse<ReportExportResponse>> => {
+    return apiClient.get<ReportExportResponse>(`/reports/exports/${id}/status`);
   },
 };

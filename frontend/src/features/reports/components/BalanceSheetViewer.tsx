@@ -7,6 +7,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, Calendar, Scale } from 'lucide-
 import { reportsApi } from '../api/reportsApi';
 import type { BalanceSheetData } from '../types/reports.types';
 import { formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function BalanceSheetViewer() {
   const [data, setData] = useState<BalanceSheetData | null>(null);
@@ -59,6 +60,10 @@ export function BalanceSheetViewer() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <ReportExportButtons
+            reportType="balance-sheet"
+            filters={{ as_of_date: asOfDate }}
+          />
         </div>
       </div>
 

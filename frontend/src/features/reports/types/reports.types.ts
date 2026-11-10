@@ -214,3 +214,34 @@ export interface StockMovementData {
     total: number;
   };
 }
+
+export type ReportType =
+  | 'trial-balance'
+  | 'profit-and-loss'
+  | 'balance-sheet'
+  | 'ar-aging'
+  | 'ap-aging'
+  | 'stock-valuation'
+  | 'stock-movements';
+
+export type ReportFormat = 'pdf' | 'xlsx';
+
+export type ReportExportStatus = 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface CreateReportExportRequest {
+  report_type: ReportType;
+  format: ReportFormat;
+  filters?: Record<string, unknown>;
+}
+
+export interface ReportExportResponse {
+  id: string;
+  report_type: ReportType;
+  format: ReportFormat;
+  status: ReportExportStatus;
+  file_size_bytes?: number | null;
+  error_message?: string | null;
+  download_url?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}

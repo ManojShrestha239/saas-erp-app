@@ -7,6 +7,7 @@ import { CheckCircle2, AlertTriangle, RefreshCw, Calendar } from 'lucide-react';
 import { reportsApi } from '../api/reportsApi';
 import type { TrialBalanceData } from '../types/reports.types';
 import { formatMoneyCents } from '../utils/formatters';
+import { ReportExportButtons } from './ReportExportButtons';
 
 export function TrialBalanceViewer() {
   const [data, setData] = useState<TrialBalanceData | null>(null);
@@ -70,6 +71,10 @@ export function TrialBalanceViewer() {
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          <ReportExportButtons
+            reportType="trial-balance"
+            filters={{ as_of_date: asOfDate, include_zero_balances: includeZeros }}
+          />
         </div>
       </div>
 
