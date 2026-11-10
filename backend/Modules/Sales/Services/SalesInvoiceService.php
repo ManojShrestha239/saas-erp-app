@@ -609,6 +609,101 @@ final class SalesInvoiceService
 
     /**
      * @return array{
+     *     as_of_date: string,
+     *     summary: array{
+     *         current_cents: int,
+     *         days_1_30_cents: int,
+     *         days_31_60_cents: int,
+     *         days_61_90_cents: int,
+     *         days_over_90_cents: int,
+     *         total_due_cents: int,
+     *     },
+     *     customers: list<array{
+     *         customer_id: string,
+     *         current_cents: int,
+     *         days_1_30_cents: int,
+     *         days_31_60_cents: int,
+     *         days_61_90_cents: int,
+     *         days_over_90_cents: int,
+     *         total_due_cents: int,
+     *         invoice_count: int,
+     *     }>
+     * }
+     */
+    public function getArAgingSummary(?Carbon $asOfDate = null, ?string $customerId = null): array
+    {
+        $asOf = ($asOfDate ?? Carbon::today())->startOfDay();
+
+        $query = SalesInvoice::query()
+            ->whereIn('status', [SalesInvoiceStatus::Posted, SalesInvoiceStatus::PartiallyPaid])
+            ->where('amount_due_cents', '>', 0);
+
+        if ($customerId !== null && trim($customerId) !== '') {
+            $query->where('customer_id', $customerId);
+        }
+
+        $invoices = $query->orderBy('customer_id')->orderBy('due_date')->get();
+
+        $customerBuckets = [];
+        $summary = [
+            'current_cents' => 0,
+            'days_1_30_cents' => 0,
+            'days_31_60_cents' => 0,
+            'days_61_90_cents' => 0,
+            'days_over_90_cents' => 0,
+            'total_due_cents' => 0,
+        ];
+
+        foreach ($invoices as $invoice) {
+            $cId = (string) $invoice->customer_id;
+            if (! isset($customerBuckets[$cId])) {
+                $customerBuckets[$cId] = [
+                    'customer_id' => $cId,
+                    'current_cents' => 0,
+                    'days_1_30_cents' => 0,
+                    'days_31_60_cents' => 0,
+                    'days_61_90_cents' => 0,
+                    'days_over_90_cents' => 0,
+                    'total_due_cents' => 0,
+                    'invoice_count' => 0,
+                ];
+            }
+
+            $dueDate = Carbon::parse($invoice->due_date)->startOfDay();
+            $daysOverdue = (int) $dueDate->diffInDays($asOf, false);
+            $dueCents = (int) $invoice->amount_due_cents;
+
+            if ($daysOverdue <= 0) {
+                $customerBuckets[$cId]['current_cents'] += $dueCents;
+                $summary['current_cents'] += $dueCents;
+            } elseif ($daysOverdue <= 30) {
+                $customerBuckets[$cId]['days_1_30_cents'] += $dueCents;
+                $summary['days_1_30_cents'] += $dueCents;
+            } elseif ($daysOverdue <= 60) {
+                $customerBuckets[$cId]['days_31_60_cents'] += $dueCents;
+                $summary['days_31_60_cents'] += $dueCents;
+            } elseif ($daysOverdue <= 90) {
+                $customerBuckets[$cId]['days_61_90_cents'] += $dueCents;
+                $summary['days_61_90_cents'] += $dueCents;
+            } else {
+                $customerBuckets[$cId]['days_over_90_cents'] += $dueCents;
+                $summary['days_over_90_cents'] += $dueCents;
+            }
+
+            $customerBuckets[$cId]['total_due_cents'] += $dueCents;
+            $customerBuckets[$cId]['invoice_count'] += 1;
+            $summary['total_due_cents'] += $dueCents;
+        }
+
+        return [
+            'as_of_date' => $asOf->toDateString(),
+            'summary' => $summary,
+            'customers' => array_values($customerBuckets),
+        ];
+    }
+
+    /**
+     * @return array{
      *     prior_invoiced_cents: int,
      *     transactions: list<array{
      *         id: string,

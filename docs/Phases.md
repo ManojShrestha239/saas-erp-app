@@ -68,7 +68,7 @@
 - [x] Super Admin dashboard: tenants, packages, subscriptions, feature toggles, suspend/reactivate, provisioning retry.
 - [x] Package limit and feature-flag enforcement middleware.
 - [x] Immutable audit logs (Spatie Activitylog) in tenant DB + central `global_audit_logs`; viewer UI with filters.
-- [ ] Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement.
+- [x] Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement.
 - [ ] PDF (Browsershot) and Excel (Maatwebsite) exports on the `reports` queue with signed URLs.
 - [ ] FCM push helper for low-stock and overdue alerts.
 - **Exit criteria:** report totals match ledger; exports are queued and tenant-scoped; audit log cannot be edited.

@@ -123,6 +123,30 @@ final class ContactService
     }
 
     /**
+     * @param  list<string>  $ids
+     * @return array<string, array{id: string, code: string, name: string, type: string}>
+     */
+    public function getSummariesByIds(array $ids): array
+    {
+        if (empty($ids)) {
+            return [];
+        }
+
+        $contacts = Contact::whereIn('id', $ids)->get();
+        $result = [];
+        foreach ($contacts as $contact) {
+            $result[(string) $contact->id] = [
+                'id' => (string) $contact->id,
+                'code' => $contact->code,
+                'name' => $contact->name,
+                'type' => $contact->type->value,
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
      * @param  array{search?: ?string, type?: ?string, is_active?: ?bool}  $filters
      * @param  array{field: string, direction: 'asc'|'desc'}  $sort
      * @return LengthAwarePaginator<int, Contact>

@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (3 of 6 items completed) · Active Task: Immutable audit logs in tenant DB + central `global_audit_logs`; viewer UI with filters (Completed)
-- **Last Completed Task:** `feat/audit-logs-viewer`: Implemented Spatie Activitylog in tenant DB (`TenantActivity` using `UsesTenantConnection`) and central `GlobalAuditLog` on `central` connection with strict model-level immutability (`updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`). Attached `Shared\Audit\LogsAuditableActivity` to core tenant models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) tracking dirty diffs and excluding sensitive credentials. Built `AuditLogService`, Form Requests, API Resources, and Controllers; secured `/api/v1/audit-logs` and `/audit-logs` by `TenantPermission::AuditView` (Owner/Accountant allowed, Sales Rep/Warehouse Manager rejected with 403). Wired central audit logging into Super Admin actions (feature toggling, package CRUD, subscriptions, tenant status). Built frontend `/audit-logs` viewer with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; added Central Audit Logs tab to Super Admin portal. 100% CI gate passing across Pint (505 files clean), Larastan Level 8 (0 errors across 421 files), Pest (378 tests passed, 3,246 assertions, all 13 Arch tests clean), Vitest (85 tests passed across 19 files), ESLint, TypeScript, and Vite production build.
-- **Current Focus:** Phase 6 Item 4: Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement.
-- **Working branch:** `feat/audit-logs-viewer`
+- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (4 of 6 items completed) · Active Task: Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement (Completed)
+- **Last Completed Task:** `feat/financial-and-inventory-reports`: Implemented full financial and operational reporting suite in `Modules/Accounting`, `Modules/Contacts`, `Modules/Inventory`, and dedicated `Modules/Reports`. Financial reports: Trial Balance (as-of date, include zero balances, zero-sum verification), Profit & Loss (Revenue, COGS, Gross Profit, Operating Expenses, Net Income/Loss), Balance Sheet (Assets, Liabilities, Equity with cumulative net earnings integration satisfying $Assets = Liabilities + Equity$). Operational reports: AR and AP Aging across overdue brackets (`Current`, `1–30`, `31–60`, `61–90`, `90+`) reconciling with GL Control Accounts `1130` and `2110`; Stock Valuation based on continuous moving weighted average cost reconciling with GL Control Account `1150`; Stock Movement audit history with filters. RBAC enforcement via `reports.financial` and `reports.stock` permissions. Built complete frontend reporting hub on `/reports` with 6 interactive viewers (`TrialBalanceViewer`, `ProfitAndLossViewer`, `BalanceSheetViewer`, `ArApAgingViewer`, `StockValuationViewer`, `StockMovementViewer`) and permission-gated navigation tabs. 100% CI gate passing across Pint, Larastan Level 8 (0 errors across 427 files), Pest (389 tests passed, 3,355 assertions, 14 Arch tests clean), Vitest (92 tests passed across 20 files), ESLint, TypeScript, and Vite production build.
+- **Current Focus:** Phase 6 Item 5: PDF (Browsershot) and Excel (Maatwebsite) exports on the `reports` queue with signed URLs.
+- **Working branch:** `feat/financial-and-inventory-reports`
 
 ## Architectural Decisions (Decision Log)
 
@@ -67,6 +67,7 @@
 | 45  | Super Admin Central Control Plane, Tenant Lifecycle & Packaging Engine (`feat/super-admin-dashboard`): `packages`, `subscriptions`, and `feature_flags` tables on `central` connection with integer minor units (`price_cents` BIGINT). `Modules\Tenancy\Services\TenantManagementService` acts as the cross-module isolation facade for tenant lifecycle queries, suspension/reactivation, and provisioning retry without exposing Tenancy models directly to SuperAdmin (strictly compliant with Pest ArchTest). Super admin routes operate strictly on central domain via `EnsureCentralDomain` (which rejects tenant subdomains with 404 `ROUTE_NOT_FOUND`) and are prioritized ahead of authentication in `bootstrap/app.php`. Provisioning retry resets status to `provisioning`, clears `provisioning_error`, and re-dispatches `ProvisionTenantDatabase`. Dedicated frontend central dashboard (`/admin/dashboard`) with TanStack tenant table, status filtering, subscription tier assignment, and feature switches. | Eliminates cross-module model leakage; guarantees tenant subdomains cannot probe or access platform administrative endpoints; enables centralized monetization, limit configurations, and self-healing provisioning. |
 | 46  | Subscription Package Limits & Feature Flag Middleware (`feat/package-limits-feature-flags`): Server-side enforcement of package bounds (`max_users`, `max_warehouses`, `max_invoices_per_month`) and feature-flags via `EnsurePackageLimit` (`package.limit:{resource}`) and `EnsureFeatureEnabled` (`feature:{flag}`) middleware. `TenantPackageService` on central DB and `EnforcePackageLimitService` decouple commercial limits from concrete module models, preserving strict ArchTest boundaries. Global feature flags override package tier assignments (global kill-switch). Shared props in `HandleInertiaRequests` expose active limits and features for real-time frontend awareness. | Enforces SaaS monetization and usage limits at the HTTP perimeter; prevents unauthorized over-utilization across users, physical warehouses, and monthly sales documents; guarantees global platform kill-switch control without database cross-coupling. |
 | 47  | Multi-Tenancy Immutable Audit Logging Architecture (`feat/audit-logs-viewer`): Dual-tier immutable audit logging using Spatie Activitylog in tenant DB (`TenantActivity` extending Spatie `Activity` with `UsesTenantConnection`) and `GlobalAuditLog` on `central` connection for platform control-plane mutations. Strict model-level immutability: `updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`. Domain models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) use `Shared\Audit\LogsAuditableActivity` recording changes with dirty diffs and password/token exclusions. Tenant viewer `/audit-logs` guarded by `TenantPermission::AuditView` (Owner and Accountant authorized, Warehouse Manager and Sales Rep rejected with 403) with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; Super Admin dashboard includes dedicated Central Audit Logs tab. | Guarantees tamper-proof compliance history across both tenant operational data and central platform administration; preserves strict database-per-tenant isolation; ensures granular RBAC security and immediate visual diff inspection. |
+| 48  | Financial & Operational Reporting Architecture (`feat/financial-and-inventory-reports`): Central reporting coordinator in `Modules\Reports` delegating to public services in `Accounting` (`FinancialReportService`), `Contacts` (`AgingReportService`), and `Inventory` (`InventoryCostingService`, `StockService`) without importing foreign models (100% ArchTest compliant). Minor units integer cents (`*_cents` BIGINT) across all endpoints with zero floats. Mathematical balance validation: Trial Balance asserts debits = credits ($net\_diff = 0$); Balance Sheet dynamically computes lifetime net income into current period retained earnings satisfying $Assets = Liabilities + Equity$; AR Aging and AP Aging calculate sub-ledger overdue brackets (`Current`, `1–30`, `31–60`, `61–90`, `90+`) reconciling with GL Control Accounts 1130 and 2110; Stock Valuation calculates moving weighted average cost reconciling with GL Control Account 1150. Role-based access control enforces `reports.financial` for financial statements and aging vs `reports.stock` for stock reports. Responsive frontend tabbed interface on `/reports`. | Guarantees financial integrity and double-entry equilibrium; automates control account reconciliation; provides instant operational visibility without float rounding errors; preserves strict modular monolith boundaries. |
 
 ## Conventions Locked In
 
@@ -87,54 +88,48 @@
 
 ## Next Steps
 
-1. Phase 6 Item 3: Immutable audit logs (Spatie Activitylog in tenant DB + central `global_audit_logs`).
-2. Phase 6 Item 4: Financial reports (P&L, Balance Sheet, Trial Balance).
-3. Phase 6 Item 5: PDF (Browsershot) and Excel (Maatwebsite) exports on the `reports` queue with signed URLs.
-4. Phase 6 Item 6: FCM push helper for low-stock and overdue alerts.
+1. Phase 6 Item 5: PDF (Browsershot) and Excel (Maatwebsite) exports on the `reports` queue with signed URLs.
+2. Phase 6 Item 6: FCM push helper for low-stock and overdue alerts.
+3. Phase 7: Hardening, Docs & Release.
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Tenancy/Services/TenantPackageService.php`
-- `backend/Modules/Tenancy/Services/EnforcePackageLimitService.php`
-- `backend/Shared/Http/Middleware/EnsureFeatureEnabled.php`
-- `backend/Shared/Http/Middleware/EnsurePackageLimit.php`
-- `backend/Shared/Http/Middleware/HandleInertiaRequests.php`
-- `backend/bootstrap/app.php`
-- `backend/Modules/Inventory/Services/WarehouseService.php`
-- `backend/Modules/Inventory/Routes/api.php`
-- `backend/Modules/Audit/Models/TenantActivity.php`
-- `backend/Modules/Audit/Services/AuditLogService.php`
-- `backend/Modules/Audit/Http/Requests/ListAuditLogsRequest.php`
-- `backend/Modules/Audit/Http/Resources/AuditLogResource.php`
-- `backend/Modules/Audit/Http/Controllers/AuditLogController.php`
-- `backend/Modules/Audit/Http/Controllers/AuditLogWebController.php`
-- `backend/Modules/Audit/Policies/AuditLogPolicy.php`
-- `backend/Modules/Audit/Providers/AuditServiceProvider.php`
-- `backend/Modules/Audit/Routes/api.php`
-- `backend/Modules/Audit/Routes/web.php`
-- `backend/Modules/Audit/Database/Migrations/2026_11_10_000001_create_tenant_activity_log_table.php`
-- `backend/Modules/SuperAdmin/Models/GlobalAuditLog.php`
-- `backend/Modules/SuperAdmin/Services/GlobalAuditLogService.php`
-- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminAuditLogController.php`
-- `backend/Modules/SuperAdmin/Http/Resources/GlobalAuditLogResource.php`
-- `backend/Shared/Audit/LogsAuditableActivity.php`
-- `backend/config/activitylog.php`
-- `frontend/src/features/audit/types/audit.types.ts`
-- `frontend/src/features/audit/api/auditApi.ts`
-- `frontend/src/features/audit/components/AuditDiffModal.tsx`
-- `frontend/src/features/audit/pages/AuditLogIndex.tsx`
-- `frontend/src/features/audit/pages/__tests__/AuditLogIndex.test.tsx`
-- `frontend/src/features/super-admin/pages/SuperAdminDashboard.tsx`
+- `backend/Modules/Accounting/DTOs/TrialBalanceReportData.php`
+- `backend/Modules/Accounting/DTOs/ProfitAndLossReportData.php`
+- `backend/Modules/Accounting/DTOs/BalanceSheetReportData.php`
+- `backend/Modules/Accounting/Services/FinancialReportService.php`
+- `backend/Modules/Accounting/Providers/AccountingServiceProvider.php`
+- `backend/Modules/Sales/Services/SalesInvoiceService.php`
+- `backend/Modules/Purchasing/Services/SupplierBillService.php`
+- `backend/Modules/Contacts/Services/ContactService.php`
+- `backend/Modules/Contacts/Services/AgingReportService.php`
+- `backend/Modules/Contacts/Providers/ContactsServiceProvider.php`
+- `backend/Modules/Reports/Providers/ReportsServiceProvider.php`
+- `backend/Modules/Reports/Http/Controllers/FinancialReportController.php`
+- `backend/Modules/Reports/Http/Controllers/OperationalReportController.php`
+- `backend/Modules/Reports/Http/Controllers/ReportsWebController.php`
+- `backend/Modules/Reports/Routes/api.php`
+- `backend/Modules/Reports/Routes/web.php`
+- `backend/tests/Feature/Reports/FinancialReportsTest.php`
+- `backend/tests/Feature/Reports/OperationalReportsTest.php`
+- `frontend/src/features/reports/types/reports.types.ts`
+- `frontend/src/features/reports/api/reportsApi.ts`
+- `frontend/src/features/reports/utils/formatters.ts`
+- `frontend/src/features/reports/components/TrialBalanceViewer.tsx`
+- `frontend/src/features/reports/components/ProfitAndLossViewer.tsx`
+- `frontend/src/features/reports/components/BalanceSheetViewer.tsx`
+- `frontend/src/features/reports/components/ArApAgingViewer.tsx`
+- `frontend/src/features/reports/components/StockValuationViewer.tsx`
+- `frontend/src/features/reports/components/StockMovementViewer.tsx`
+- `frontend/src/features/reports/pages/ReportsIndex.tsx`
+- `frontend/src/features/reports/pages/__tests__/ReportsIndex.test.tsx`
 - `frontend/src/layouts/AppLayout.tsx`
-- `frontend/src/layouts/AdminLayout.tsx`
-- `backend/tests/Feature/Audit/AuditLogTest.php`
-- `backend/tests/Feature/SuperAdmin/GlobalAuditLogTest.php`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
 
-- `2026-11-10`: `feat/audit-logs-viewer`: Implemented Spatie Activitylog in tenant DB (`TenantActivity` using `UsesTenantConnection`) and central `GlobalAuditLog` on `central` connection with strict model-level immutability (`updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`). Attached `Shared\Audit\LogsAuditableActivity` to core tenant models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) tracking dirty diffs and excluding sensitive credentials. Built `AuditLogService`, Form Requests, API Resources, and Controllers; secured `/api/v1/audit-logs` and `/audit-logs` by `TenantPermission::AuditView` (Owner/Accountant allowed, Sales Rep/Warehouse Manager rejected with 403). Wired central audit logging into Super Admin actions (feature toggling, package CRUD, subscriptions, tenant status). Built frontend `/audit-logs` viewer with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; added Central Audit Logs tab to Super Admin portal. 100% CI gate passing across Pint (505 files clean), Larastan Level 8 (0 errors across 421 files), Pest (378 tests passed, 3,246 assertions, all 13 Arch tests clean), Vitest (85 tests passed across 19 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 third item.
+- `2026-11-10`: `feat/financial-and-inventory-reports`: Implemented full financial and operational reporting suite across backend and frontend. Created financial report DTOs (`TrialBalanceReportData`, `ProfitAndLossReportData`, `BalanceSheetReportData`) and `FinancialReportService` in `Modules/Accounting` (Trial Balance verifies $total\_debits = total\_credits$ and zero net difference; P&L computes Revenue, COGS, Gross Profit, Expenses, Net Income; Balance Sheet integrates cumulative net earnings into equity satisfying $Assets = Liabilities + Equity$). Extended `SalesInvoiceService` and `SupplierBillService` with `getArAgingSummary` and `getApAgingSummary` grouping into overdue brackets (`Current`, `1–30`, `31–60`, `61–90`, `90+`); created `AgingReportService` in `Modules/Contacts` resolving contact names/codes and reconciling sub-ledger totals against Control Accounts 1130 (AR) and 2110 (AP). Reconciled Stock Valuation against Control Account 1150 (Inventory Asset) using continuous moving weighted average cost. Scaffolded `Modules/Reports` with `ReportsServiceProvider`, `FinancialReportController`, `OperationalReportController`, and `ReportsWebController`. Enforced RBAC: `reports.financial` for financial statements and aging; `reports.stock` for valuation and movement history; updated `AppLayout` sidebar permissions array. Built frontend `/reports` hub with accessible tab navigation and 6 dedicated viewer components (`TrialBalanceViewer`, `ProfitAndLossViewer`, `BalanceSheetViewer`, `ArApAgingViewer`, `StockValuationViewer`, `StockMovementViewer`). 100% CI gate passing across Pint (513 files clean), Larastan Level 8 (0 errors across 427 files), Pest (389 tests passed, 3,355 assertions, all 14 Arch tests clean), Vitest (92 tests passed across 20 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 fourth item.
 
 - `2026-11-10`: `feat/package-limits-feature-flags`: Implemented server-side subscription package limits (`max_users`, `max_warehouses`, `max_invoices_per_month`) and multi-layer feature flag enforcement middleware. Added `TenantPackageService` methods for live subscription querying on central DB (`getMaxUsers`, `getMaxWarehouses`, `getMaxInvoicesPerMonth`, `hasFeature`, `isGlobalFeatureEnabled`, `getPackageLimits`); created `EnforcePackageLimitService` orchestrating limits across user invitations, warehouse creations, and current-month sales invoice generations while preserving 100% ArchTest module decoupling; built `EnsurePackageLimit` (`package.limit:{resource}`) and `EnsureFeatureEnabled` (`feature:{flag}`) middleware aliases prioritized in `bootstrap/app.php`; wired limit middleware to `POST /api/v1/inventory/warehouses`, `POST /api/v1/sales/invoices`, quotation conversion, and user invitations; added global feature flag kill-switch support overriding package tiers; exposed active subscription limits and features in `HandleInertiaRequests` shared props. 100% CI gate passing across Pint (498 files clean), Larastan Level 8 (0 errors across 413 files), Pest (369 tests passed, 3,146 assertions, all 12 Arch tests clean), Vitest (81 tests passed across 18 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 second item.
 

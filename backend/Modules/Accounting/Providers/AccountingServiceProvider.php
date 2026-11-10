@@ -15,6 +15,7 @@ use Modules\Accounting\Policies\JournalEntryPolicy;
 use Modules\Accounting\Policies\VatReturnPolicy;
 use Modules\Accounting\Services\AccountService;
 use Modules\Accounting\Services\DocumentPostingService;
+use Modules\Accounting\Services\FinancialReportService;
 use Modules\Accounting\Services\FiscalPeriodService;
 use Modules\Accounting\Services\JournalEntryService;
 use Modules\Accounting\Services\VatReturnService;
@@ -34,6 +35,7 @@ final class AccountingServiceProvider extends ModuleServiceProvider
         $this->app->singleton(JournalEntryService::class);
         $this->app->singleton(DocumentPostingService::class);
         $this->app->singleton(VatReturnService::class);
+        $this->app->singleton(FinancialReportService::class);
     }
 
     public function boot(): void
