@@ -11,6 +11,10 @@ use Shared\Utils\HttpStatus;
 
 final class SuperAdminFeatureFlagService
 {
+    public function __construct(
+        private readonly GlobalAuditLogService $auditLogService,
+    ) {}
+
     /**
      * @return Collection<int, FeatureFlag>
      */
@@ -38,9 +42,18 @@ final class SuperAdminFeatureFlagService
     public function toggleFlag(string $key, ?bool $state = null): FeatureFlag
     {
         $flag = $this->findFlag($key);
+        $oldValues = ['is_enabled' => $flag->is_enabled];
 
         $newState = $state !== null ? $state : ! $flag->is_enabled;
         $flag->update(['is_enabled' => $newState]);
+
+        $this->auditLogService->log(
+            event: 'feature_flag.toggled',
+            auditableType: FeatureFlag::class,
+            auditableId: $flag->key,
+            oldValues: $oldValues,
+            newValues: ['is_enabled' => $newState],
+        );
 
         return $flag;
     }

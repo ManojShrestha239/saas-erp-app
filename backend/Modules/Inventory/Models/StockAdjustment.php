@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Shared\Audit\LogsAuditableActivity;
 use Shared\Tenancy\UsesTenantConnection;
 
 /**
@@ -28,6 +29,7 @@ use Shared\Tenancy\UsesTenantConnection;
 final class StockAdjustment extends Model
 {
     use HasUlids;
+    use LogsAuditableActivity;
     use UsesTenantConnection;
 
     protected $table = 'stock_adjustments';

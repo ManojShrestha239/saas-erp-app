@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\SuperAdmin\Providers;
 
+use Modules\SuperAdmin\Services\GlobalAuditLogService;
 use Modules\SuperAdmin\Services\SuperAdminDashboardService;
 use Modules\SuperAdmin\Services\SuperAdminFeatureFlagService;
 use Modules\SuperAdmin\Services\SuperAdminPackageService;
@@ -25,5 +26,6 @@ final class SuperAdminServiceProvider extends ModuleServiceProvider
         $this->app->singleton(SuperAdminSubscriptionService::class);
         $this->app->singleton(SuperAdminFeatureFlagService::class);
         $this->app->singleton(SuperAdminDashboardService::class);
+        $this->app->singleton(GlobalAuditLogService::class);
     }
 }

@@ -19,7 +19,17 @@ import {
   Users,
   Warehouse,
   Receipt,
+  Eye,
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { auditApi } from '@/features/audit/api/auditApi';
+import type { GlobalAuditLog } from '@/features/audit/types/audit.types';
 import { superAdminApi } from '../api/superAdminApi';
 import type {
   SuperAdminStats,
@@ -69,6 +79,14 @@ export default function SuperAdminDashboard({
 
   const [detailsModalOpen, setDetailsModalOpen] = useState(false);
   const [tenantDetails, setTenantDetails] = useState<SuperAdminTenantItem | null>(null);
+
+  // Central Audit State
+  const [auditLogs, setAuditLogs] = useState<GlobalAuditLog[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditEventFilter, setAuditEventFilter] = useState('all');
+  const [auditDetailsModalOpen, setAuditDetailsModalOpen] = useState(false);
+  const [selectedGlobalLog, setSelectedGlobalLog] = useState<GlobalAuditLog | null>(null);
 
   // Fetch Dashboard Stats
   const loadStats = useCallback(async () => {
@@ -130,6 +148,23 @@ export default function SuperAdminDashboard({
     }
   }, []);
 
+  // Fetch Central Audit Logs
+  const loadAuditLogs = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const res = await auditApi.getGlobalAuditLogs({
+        search: auditSearch.trim() || undefined,
+        event: auditEventFilter !== 'all' ? auditEventFilter : undefined,
+        per_page: 50,
+      });
+      setAuditLogs(res.data);
+    } catch {
+      // Best effort load
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [auditSearch, auditEventFilter]);
+
   // Initial Load
   useEffect(() => {
     loadStats();
@@ -147,8 +182,10 @@ export default function SuperAdminDashboard({
       loadSubscriptions();
     } else if (activeTab === 'feature-flags') {
       loadFeatureFlags();
+    } else if (activeTab === 'audit-logs') {
+      loadAuditLogs();
     }
-  }, [activeTab, loadStats, loadTenants, loadPackages, loadSubscriptions, loadFeatureFlags]);
+  }, [activeTab, loadStats, loadTenants, loadPackages, loadSubscriptions, loadFeatureFlags, loadAuditLogs]);
 
   // Actions
   const handleReactivateTenant = async (id: string) => {
@@ -847,6 +884,136 @@ export default function SuperAdminDashboard({
           </div>
         )}
 
+        {/* CENTRAL AUDIT LOGS TAB */}
+        {activeTab === 'audit-logs' && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  Central Immutable Audit Trail
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Platform-level audit log recording tenant provisioning, package adjustments, and feature toggles.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={loadAuditLogs}
+                disabled={auditLoading}
+                className="gap-2"
+              >
+                <RotateCw className={`h-4 w-4 ${auditLoading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
+            </div>
+
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-card p-3 rounded-lg border border-border">
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { label: 'All Events', value: 'all' },
+                  { label: 'Tenants', value: 'tenant' },
+                  { label: 'Packages', value: 'package' },
+                  { label: 'Subscriptions', value: 'subscription' },
+                  { label: 'Feature Flags', value: 'feature_flag' },
+                ].map((tab) => (
+                  <Button
+                    key={tab.value}
+                    variant={auditEventFilter === tab.value ? 'primary' : 'ghost'}
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => setAuditEventFilter(tab.value)}
+                  >
+                    {tab.label}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search central audit..."
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Central Audit Table */}
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3">Timestamp</th>
+                      <th className="px-4 py-3">Event</th>
+                      <th className="px-4 py-3">Tenant ID</th>
+                      <th className="px-4 py-3">Target / Model</th>
+                      <th className="px-4 py-3">Actor / IP</th>
+                      <th className="px-4 py-3 text-right">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-sm text-muted-foreground">
+                          {auditLoading ? 'Loading audit records...' : 'No central audit records found.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap text-xs text-muted-foreground">
+                            {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {log.event}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+                            {log.tenant_id ? log.tenant_id.slice(0, 10) + '...' : 'System / Central'}
+                          </td>
+                          <td className="px-4 py-3 text-xs">
+                            <span className="font-medium text-foreground">
+                              {log.auditable_type ? log.auditable_type.split('\\').pop() : '—'}
+                            </span>
+                            {log.auditable_id && (
+                              <span className="font-mono text-muted-foreground ml-1">
+                                (#{log.auditable_id})
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+                            {log.ip_address ?? '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setSelectedGlobalLog(log);
+                                setAuditDetailsModalOpen(true);
+                              }}
+                            >
+                              <Eye className="h-3.5 w-3.5 mr-1" />
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* MODALS */}
         <SuspendTenantModal
           open={suspendModalOpen}
@@ -910,6 +1077,77 @@ export default function SuperAdminDashboard({
             setSubscriptionModalOpen(true);
           }}
         />
+
+        {/* Global Audit Log Details Dialog */}
+        <Dialog open={auditDetailsModalOpen} onOpenChange={setAuditDetailsModalOpen}>
+          <DialogHeader>
+            <div className="flex items-center gap-2 mb-1">
+              <Badge variant="outline" className="font-mono text-xs">
+                {selectedGlobalLog?.event}
+              </Badge>
+              <span className="text-xs text-muted-foreground">ID #{selectedGlobalLog?.id}</span>
+            </div>
+            <DialogTitle>Central Audit Record Details</DialogTitle>
+            <DialogDescription>
+              Captured platform event with snapshot of state before and after execution.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedGlobalLog && (
+            <div className="space-y-4 my-2 text-xs">
+              <div className="grid grid-cols-2 gap-2 bg-muted/40 p-3 rounded-md border border-border">
+                <div>
+                  <span className="font-semibold text-foreground">Tenant: </span>
+                  <span className="font-mono text-muted-foreground">{selectedGlobalLog.tenant_id ?? 'None (Platform-wide)'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Actor ID: </span>
+                  <span className="font-mono text-muted-foreground">{selectedGlobalLog.user_id ?? 'System'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Target Type: </span>
+                  <span className="font-mono text-muted-foreground">{selectedGlobalLog.auditable_type ?? '—'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Target ID: </span>
+                  <span className="font-mono text-muted-foreground">{selectedGlobalLog.auditable_id ?? '—'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">IP Address: </span>
+                  <span className="font-mono text-muted-foreground">{selectedGlobalLog.ip_address ?? '—'}</span>
+                </div>
+                <div>
+                  <span className="font-semibold text-foreground">Date: </span>
+                  <span className="text-muted-foreground">{selectedGlobalLog.created_at ? new Date(selectedGlobalLog.created_at).toLocaleString() : '—'}</span>
+                </div>
+              </div>
+
+              {selectedGlobalLog.old_values && (
+                <div>
+                  <h4 className="font-semibold text-foreground mb-1">Previous Values (Before):</h4>
+                  <pre className="p-3 bg-muted/50 rounded-md border border-border overflow-x-auto font-mono text-[11px] text-rose-600 dark:text-rose-400">
+                    {JSON.stringify(selectedGlobalLog.old_values, null, 2)}
+                  </pre>
+                </div>
+              )}
+
+              {selectedGlobalLog.new_values && (
+                <div>
+                  <h4 className="font-semibold text-foreground mb-1">New Values (After):</h4>
+                  <pre className="p-3 bg-muted/50 rounded-md border border-border overflow-x-auto font-mono text-[11px] text-emerald-600 dark:text-emerald-400">
+                    {JSON.stringify(selectedGlobalLog.new_values, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAuditDetailsModalOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </Dialog>
       </div>
     </AdminLayout>
   );

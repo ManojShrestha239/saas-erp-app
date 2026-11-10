@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Modules\Contacts\Enums\ContactType;
+use Shared\Audit\LogsAuditableActivity;
 use Shared\Tenancy\UsesTenantConnection;
 
 /**
@@ -35,6 +36,7 @@ use Shared\Tenancy\UsesTenantConnection;
 final class Contact extends Model
 {
     use HasUlids;
+    use LogsAuditableActivity;
     use UsesTenantConnection;
 
     protected $table = 'contacts';

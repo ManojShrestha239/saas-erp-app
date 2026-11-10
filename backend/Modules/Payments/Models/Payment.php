@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
 use Modules\Payments\Enums\PaymentMethod;
 use Modules\Payments\Enums\PaymentStatus;
 use Modules\Payments\Enums\PaymentType;
+use Shared\Audit\LogsAuditableActivity;
 use Shared\Tenancy\UsesTenantConnection;
 
 /**
@@ -39,6 +40,7 @@ use Shared\Tenancy\UsesTenantConnection;
 final class Payment extends Model
 {
     use HasUlids;
+    use LogsAuditableActivity;
     use UsesTenantConnection;
 
     protected $table = 'payments';

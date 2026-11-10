@@ -6,6 +6,7 @@ import {
   Package,
   CreditCard,
   Flag,
+  ShieldCheck,
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
@@ -33,6 +34,7 @@ const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { name: 'Packages', href: '/admin/packages', icon: Package, id: 'packages' },
   { name: 'Subscriptions', href: '/admin/subscriptions', icon: CreditCard, id: 'subscriptions' },
   { name: 'Feature Flags', href: '/admin/feature-flags', icon: Flag, id: 'feature-flags' },
+  { name: 'Audit Logs', href: '/admin/audit-logs', icon: ShieldCheck, id: 'audit-logs' },
 ];
 
 export function AdminLayout({

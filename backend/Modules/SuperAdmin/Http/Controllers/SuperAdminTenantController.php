@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Modules\SuperAdmin\Http\Requests\SuspendTenantRequest;
 use Modules\SuperAdmin\Http\Resources\SuperAdminTenantResource;
+use Modules\SuperAdmin\Services\GlobalAuditLogService;
 use Modules\Tenancy\Services\TenantManagementService;
 use Shared\Responses\ApiResponse;
 
@@ -15,6 +16,7 @@ final class SuperAdminTenantController
 {
     public function __construct(
         private readonly TenantManagementService $tenantManagementService,
+        private readonly GlobalAuditLogService $globalAuditLogService,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -53,6 +55,12 @@ final class SuperAdminTenantController
         $reason = $request->filled('reason') ? (string) $request->input('reason') : null;
         $tenant = $this->tenantManagementService->suspendTenant($id, $reason);
 
+        $this->globalAuditLogService->log(
+            event: 'tenant.suspended',
+            tenantId: $id,
+            newValues: ['status' => 'suspended', 'reason' => $reason],
+        );
+
         return ApiResponse::success(
             data: new SuperAdminTenantResource($tenant),
             message: "Tenant '{$tenant->name}' has been suspended.",
@@ -63,6 +71,12 @@ final class SuperAdminTenantController
     {
         $tenant = $this->tenantManagementService->reactivateTenant($id);
 
+        $this->globalAuditLogService->log(
+            event: 'tenant.reactivated',
+            tenantId: $id,
+            newValues: ['status' => 'active'],
+        );
+
         return ApiResponse::success(
             data: new SuperAdminTenantResource($tenant),
             message: "Tenant '{$tenant->name}' has been reactivated.",
@@ -72,6 +86,11 @@ final class SuperAdminTenantController
     public function retryProvisioning(string $id): JsonResponse
     {
         $tenant = $this->tenantManagementService->retryProvisioning($id);
+
+        $this->globalAuditLogService->log(
+            event: 'tenant.provisioning_retried',
+            tenantId: $id,
+        );
 
         return ApiResponse::success(
             data: new SuperAdminTenantResource($tenant),

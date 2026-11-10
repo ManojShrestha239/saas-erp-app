@@ -16,6 +16,7 @@ final class SuperAdminSubscriptionService
     public function __construct(
         private readonly DatabaseManager $databaseManager,
         private readonly SuperAdminPackageService $packageService,
+        private readonly GlobalAuditLogService $auditLogService,
     ) {}
 
     /**
@@ -77,6 +78,14 @@ final class SuperAdminSubscriptionService
             return $newSub;
         });
 
+        $this->auditLogService->log(
+            event: 'subscription.assigned',
+            tenantId: $data->tenantId,
+            auditableType: Subscription::class,
+            auditableId: (string) $subscription->id,
+            newValues: $subscription->toArray(),
+        );
+
         return $subscription->fresh(['package']) ?? $subscription;
     }
 
@@ -88,10 +97,20 @@ final class SuperAdminSubscriptionService
             return $sub;
         }
 
+        $oldValues = $sub->toArray();
         $sub->update([
             'status' => 'cancelled',
             'ends_at' => now(),
         ]);
+
+        $this->auditLogService->log(
+            event: 'subscription.cancelled',
+            tenantId: $sub->tenant_id,
+            auditableType: Subscription::class,
+            auditableId: (string) $sub->id,
+            oldValues: $oldValues,
+            newValues: $sub->fresh()?->toArray() ?? $sub->toArray(),
+        );
 
         return $sub->fresh(['package']) ?? $sub;
     }

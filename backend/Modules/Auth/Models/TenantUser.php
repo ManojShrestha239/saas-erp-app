@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\Access\Authorizable;
 use Illuminate\Support\Carbon;
+use Shared\Audit\LogsAuditableActivity;
 use Shared\Tenancy\UsesTenantConnection;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -30,6 +31,7 @@ final class TenantUser extends Model implements AuthenticatableContract, Authori
     use Authenticatable;
     use Authorizable;
     use HasRoles;
+    use LogsAuditableActivity;
     use UsesTenantConnection;
 
     protected string $guard_name = 'web';

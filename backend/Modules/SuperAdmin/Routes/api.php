@@ -6,6 +6,7 @@ use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Modules\SuperAdmin\Http\Controllers\SuperAdminAuditLogController;
 use Modules\SuperAdmin\Http\Controllers\SuperAdminAuthController;
 use Modules\SuperAdmin\Http\Controllers\SuperAdminDashboardController;
 use Modules\SuperAdmin\Http\Controllers\SuperAdminFeatureFlagController;
@@ -73,5 +74,9 @@ Route::middleware([
             ->name('super-admin.feature-flags.index');
         Route::put('feature-flags/{key}/toggle', [SuperAdminFeatureFlagController::class, 'toggle'])
             ->name('super-admin.feature-flags.toggle');
+
+        // Central Audit Logs
+        Route::get('audit-logs', [SuperAdminAuditLogController::class, 'index'])
+            ->name('super-admin.audit-logs.index');
     });
 });

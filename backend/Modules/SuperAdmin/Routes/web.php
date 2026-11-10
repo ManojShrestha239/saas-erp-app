@@ -38,5 +38,9 @@ Route::middleware([
         Route::get('feature-flags', fn (): Response => Inertia::render('super-admin/SuperAdminDashboard', [
             'initialTab' => 'feature-flags',
         ]))->name('super-admin.web.feature-flags');
+
+        Route::get('audit-logs', fn (): Response => Inertia::render('super-admin/SuperAdminDashboard', [
+            'initialTab' => 'audit-logs',
+        ]))->name('super-admin.web.audit-logs');
     });
 });

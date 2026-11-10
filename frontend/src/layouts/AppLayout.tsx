@@ -12,6 +12,7 @@ import {
   BookOpen,
   BarChart3,
   Settings,
+  ShieldCheck,
   Bell,
   Search,
   User,
@@ -55,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Users', href: '/users', icon: Users, id: 'users', permission: 'users.manage' },
   { name: 'Accounting', href: '/accounting', icon: BookOpen, id: 'accounting', permission: 'accounting.manage' },
   { name: 'Reports', href: '/reports', icon: BarChart3, id: 'reports', permission: 'reports.view' },
+  { name: 'Audit Logs', href: '/audit-logs', icon: ShieldCheck, id: 'audit-logs', permission: 'audit.view' },
   { name: 'Settings', href: '/settings', icon: Settings, id: 'settings', permission: 'settings.manage' },
 ];
 
@@ -156,7 +158,7 @@ export function AppLayout({
                 {user?.name || activeTenantName}
               </span>
               <span className="text-xs text-sidebar-foreground/60 truncate">
-                {user?.roles[0] || 'Team Member'}
+                {user?.roles?.[0] || 'Team Member'}
               </span>
             </div>
           </div>

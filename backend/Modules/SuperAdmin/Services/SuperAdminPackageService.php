@@ -13,6 +13,10 @@ use Shared\Utils\HttpStatus;
 
 final class SuperAdminPackageService
 {
+    public function __construct(
+        private readonly GlobalAuditLogService $auditLogService,
+    ) {}
+
     /**
      * @return Collection<int, Package>
      */
@@ -59,12 +63,20 @@ final class SuperAdminPackageService
             'price_cents' => $data->priceCents,
         ]);
 
+        $this->auditLogService->log(
+            event: 'package.created',
+            auditableType: Package::class,
+            auditableId: (string) $package->id,
+            newValues: $package->toArray(),
+        );
+
         return $package;
     }
 
     public function updatePackage(int $id, UpdatePackageData $data): Package
     {
         $package = $this->findPackage($id);
+        $oldValues = $package->toArray();
 
         $payload = array_filter([
             'name' => $data->name,
@@ -77,6 +89,15 @@ final class SuperAdminPackageService
         ], fn ($val): bool => $val !== null);
 
         $package->update($payload);
+
+        $fresh = $package->fresh();
+        $this->auditLogService->log(
+            event: 'package.updated',
+            auditableType: Package::class,
+            auditableId: (string) $package->id,
+            oldValues: $oldValues,
+            newValues: $fresh ? $fresh->toArray() : $package->toArray(),
+        );
 
         return $package;
     }
@@ -94,6 +115,14 @@ final class SuperAdminPackageService
             );
         }
 
+        $oldValues = $package->toArray();
         $package->delete();
+
+        $this->auditLogService->log(
+            event: 'package.deleted',
+            auditableType: Package::class,
+            auditableId: (string) $id,
+            oldValues: $oldValues,
+        );
     }
 }

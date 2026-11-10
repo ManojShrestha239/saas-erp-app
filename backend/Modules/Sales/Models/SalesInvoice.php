@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 use Modules\Sales\Enums\SalesInvoiceStatus;
+use Shared\Audit\LogsAuditableActivity;
 use Shared\Tenancy\UsesTenantConnection;
 
 /**
@@ -42,6 +43,7 @@ use Shared\Tenancy\UsesTenantConnection;
 final class SalesInvoice extends Model
 {
     use HasUlids;
+    use LogsAuditableActivity;
     use UsesTenantConnection;
 
     protected $table = 'sales_invoices';

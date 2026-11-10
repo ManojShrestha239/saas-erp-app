@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (2 of 6 items completed) · Active Task: Package limit and feature-flag enforcement middleware (Completed)
-- **Last Completed Task:** `feat/package-limits-feature-flags`: Implemented server-side subscription package limits (`max_users`, `max_warehouses`, `max_invoices_per_month`) and multi-layer feature flag enforcement middleware. Added `TenantPackageService` methods for live subscription querying on central DB (`getMaxUsers`, `getMaxWarehouses`, `getMaxInvoicesPerMonth`, `hasFeature`, `isGlobalFeatureEnabled`, `getPackageLimits`); created `EnforcePackageLimitService` orchestrating limits across user invitations, warehouse creations, and current-month sales invoice generations while preserving 100% ArchTest module decoupling; built `EnsurePackageLimit` (`package.limit:{resource}`) and `EnsureFeatureEnabled` (`feature:{flag}`) middleware aliases prioritized in `bootstrap/app.php`; wired limit middleware to `POST /api/v1/inventory/warehouses`, `POST /api/v1/sales/invoices`, quotation conversion, and user invitations; added global feature flag kill-switch support overriding package tiers; exposed active subscription limits and features in `HandleInertiaRequests` shared props. 100% CI gate passing across Pint (498 files clean), Larastan Level 8 (0 errors across 413 files), Pest (369 tests passed, 3,146 assertions, all 12 Arch tests clean), Vitest (81 tests passed across 18 files), ESLint, TypeScript, and Vite production build.
-- **Current Focus:** Phase 6 Item 3: Immutable audit logs (Spatie Activitylog in tenant DB + central `global_audit_logs`).
-- **Working branch:** `feat/package-limits-feature-flags`
+- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (3 of 6 items completed) · Active Task: Immutable audit logs in tenant DB + central `global_audit_logs`; viewer UI with filters (Completed)
+- **Last Completed Task:** `feat/audit-logs-viewer`: Implemented Spatie Activitylog in tenant DB (`TenantActivity` using `UsesTenantConnection`) and central `GlobalAuditLog` on `central` connection with strict model-level immutability (`updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`). Attached `Shared\Audit\LogsAuditableActivity` to core tenant models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) tracking dirty diffs and excluding sensitive credentials. Built `AuditLogService`, Form Requests, API Resources, and Controllers; secured `/api/v1/audit-logs` and `/audit-logs` by `TenantPermission::AuditView` (Owner/Accountant allowed, Sales Rep/Warehouse Manager rejected with 403). Wired central audit logging into Super Admin actions (feature toggling, package CRUD, subscriptions, tenant status). Built frontend `/audit-logs` viewer with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; added Central Audit Logs tab to Super Admin portal. 100% CI gate passing across Pint (505 files clean), Larastan Level 8 (0 errors across 421 files), Pest (378 tests passed, 3,246 assertions, all 13 Arch tests clean), Vitest (85 tests passed across 19 files), ESLint, TypeScript, and Vite production build.
+- **Current Focus:** Phase 6 Item 4: Reports: P&L, Balance Sheet, Trial Balance, AR/AP Aging, Stock Valuation, Stock Movement.
+- **Working branch:** `feat/audit-logs-viewer`
 
 ## Architectural Decisions (Decision Log)
 
@@ -66,6 +66,7 @@
 | 44  | VAT Return Calculation, GL Reconciliation & Filing Architecture (`feat/vat-return-calculation`): Live calculation engine querying Sales Invoices, Sales Credit Notes, Supplier Bills, and Supplier Debit Notes via typed service query methods (preserves ArchTest module isolation); integer cents math (`sales_taxable_cents`, `output_vat_cents`, `purchases_taxable_cents`, `input_vat_cents`, `net_vat_cents`); rate breakdown JSONB aggregation; General Ledger reconciliation comparing calculated output/input VAT against GL Account 2120 (Output VAT) and Account 1160 (Input VAT), asserting `is_reconciled`; gap-free numbering `VAT-YYYY-000000` upon filing with model-level immutability; Browsershot PDF generation; React frontend tab with KPI summary cards, rate breakdown table, and drilldown document table. | Provides statutory tax reporting and audit compliance; guarantees double-entry reconciliation between source commercial documents and the General Ledger; eliminates float rounding errors; ensures immutability of filed statutory declarations. |
 | 45  | Super Admin Central Control Plane, Tenant Lifecycle & Packaging Engine (`feat/super-admin-dashboard`): `packages`, `subscriptions`, and `feature_flags` tables on `central` connection with integer minor units (`price_cents` BIGINT). `Modules\Tenancy\Services\TenantManagementService` acts as the cross-module isolation facade for tenant lifecycle queries, suspension/reactivation, and provisioning retry without exposing Tenancy models directly to SuperAdmin (strictly compliant with Pest ArchTest). Super admin routes operate strictly on central domain via `EnsureCentralDomain` (which rejects tenant subdomains with 404 `ROUTE_NOT_FOUND`) and are prioritized ahead of authentication in `bootstrap/app.php`. Provisioning retry resets status to `provisioning`, clears `provisioning_error`, and re-dispatches `ProvisionTenantDatabase`. Dedicated frontend central dashboard (`/admin/dashboard`) with TanStack tenant table, status filtering, subscription tier assignment, and feature switches. | Eliminates cross-module model leakage; guarantees tenant subdomains cannot probe or access platform administrative endpoints; enables centralized monetization, limit configurations, and self-healing provisioning. |
 | 46  | Subscription Package Limits & Feature Flag Middleware (`feat/package-limits-feature-flags`): Server-side enforcement of package bounds (`max_users`, `max_warehouses`, `max_invoices_per_month`) and feature-flags via `EnsurePackageLimit` (`package.limit:{resource}`) and `EnsureFeatureEnabled` (`feature:{flag}`) middleware. `TenantPackageService` on central DB and `EnforcePackageLimitService` decouple commercial limits from concrete module models, preserving strict ArchTest boundaries. Global feature flags override package tier assignments (global kill-switch). Shared props in `HandleInertiaRequests` expose active limits and features for real-time frontend awareness. | Enforces SaaS monetization and usage limits at the HTTP perimeter; prevents unauthorized over-utilization across users, physical warehouses, and monthly sales documents; guarantees global platform kill-switch control without database cross-coupling. |
+| 47  | Multi-Tenancy Immutable Audit Logging Architecture (`feat/audit-logs-viewer`): Dual-tier immutable audit logging using Spatie Activitylog in tenant DB (`TenantActivity` extending Spatie `Activity` with `UsesTenantConnection`) and `GlobalAuditLog` on `central` connection for platform control-plane mutations. Strict model-level immutability: `updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`. Domain models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) use `Shared\Audit\LogsAuditableActivity` recording changes with dirty diffs and password/token exclusions. Tenant viewer `/audit-logs` guarded by `TenantPermission::AuditView` (Owner and Accountant authorized, Warehouse Manager and Sales Rep rejected with 403) with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; Super Admin dashboard includes dedicated Central Audit Logs tab. | Guarantees tamper-proof compliance history across both tenant operational data and central platform administration; preserves strict database-per-tenant isolation; ensures granular RBAC security and immediate visual diff inspection. |
 
 ## Conventions Locked In
 
@@ -101,16 +102,39 @@
 - `backend/bootstrap/app.php`
 - `backend/Modules/Inventory/Services/WarehouseService.php`
 - `backend/Modules/Inventory/Routes/api.php`
-- `backend/Modules/Sales/Services/SalesInvoiceService.php`
-- `backend/Modules/Sales/Routes/api.php`
-- `backend/Modules/Auth/Routes/api.php`
-- `backend/Modules/Accounting/Http/Controllers/VatReturnController.php`
-- `backend/tests/Feature/Tenancy/PackageLimitEnforcementTest.php`
-- `backend/tests/Feature/Tenancy/FeatureFlagEnforcementTest.php`
+- `backend/Modules/Audit/Models/TenantActivity.php`
+- `backend/Modules/Audit/Services/AuditLogService.php`
+- `backend/Modules/Audit/Http/Requests/ListAuditLogsRequest.php`
+- `backend/Modules/Audit/Http/Resources/AuditLogResource.php`
+- `backend/Modules/Audit/Http/Controllers/AuditLogController.php`
+- `backend/Modules/Audit/Http/Controllers/AuditLogWebController.php`
+- `backend/Modules/Audit/Policies/AuditLogPolicy.php`
+- `backend/Modules/Audit/Providers/AuditServiceProvider.php`
+- `backend/Modules/Audit/Routes/api.php`
+- `backend/Modules/Audit/Routes/web.php`
+- `backend/Modules/Audit/Database/Migrations/2026_11_10_000001_create_tenant_activity_log_table.php`
+- `backend/Modules/SuperAdmin/Models/GlobalAuditLog.php`
+- `backend/Modules/SuperAdmin/Services/GlobalAuditLogService.php`
+- `backend/Modules/SuperAdmin/Http/Controllers/SuperAdminAuditLogController.php`
+- `backend/Modules/SuperAdmin/Http/Resources/GlobalAuditLogResource.php`
+- `backend/Shared/Audit/LogsAuditableActivity.php`
+- `backend/config/activitylog.php`
+- `frontend/src/features/audit/types/audit.types.ts`
+- `frontend/src/features/audit/api/auditApi.ts`
+- `frontend/src/features/audit/components/AuditDiffModal.tsx`
+- `frontend/src/features/audit/pages/AuditLogIndex.tsx`
+- `frontend/src/features/audit/pages/__tests__/AuditLogIndex.test.tsx`
+- `frontend/src/features/super-admin/pages/SuperAdminDashboard.tsx`
+- `frontend/src/layouts/AppLayout.tsx`
+- `frontend/src/layouts/AdminLayout.tsx`
+- `backend/tests/Feature/Audit/AuditLogTest.php`
+- `backend/tests/Feature/SuperAdmin/GlobalAuditLogTest.php`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-10`: `feat/audit-logs-viewer`: Implemented Spatie Activitylog in tenant DB (`TenantActivity` using `UsesTenantConnection`) and central `GlobalAuditLog` on `central` connection with strict model-level immutability (`updating` and `deleting` model events reject with HTTP 400 `AUDIT_LOG_IMMUTABLE`). Attached `Shared\Audit\LogsAuditableActivity` to core tenant models (`SalesInvoice`, `SupplierBill`, `Payment`, `Warehouse`, `Product`, `StockAdjustment`, `Contact`, `TenantUser`) tracking dirty diffs and excluding sensitive credentials. Built `AuditLogService`, Form Requests, API Resources, and Controllers; secured `/api/v1/audit-logs` and `/audit-logs` by `TenantPermission::AuditView` (Owner/Accountant allowed, Sales Rep/Warehouse Manager rejected with 403). Wired central audit logging into Super Admin actions (feature toggling, package CRUD, subscriptions, tenant status). Built frontend `/audit-logs` viewer with TanStack DataTable, event/date/search filters, and `AuditDiffModal` side-by-side before/after comparison; added Central Audit Logs tab to Super Admin portal. 100% CI gate passing across Pint (505 files clean), Larastan Level 8 (0 errors across 421 files), Pest (378 tests passed, 3,246 assertions, all 13 Arch tests clean), Vitest (85 tests passed across 19 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 third item.
 
 - `2026-11-10`: `feat/package-limits-feature-flags`: Implemented server-side subscription package limits (`max_users`, `max_warehouses`, `max_invoices_per_month`) and multi-layer feature flag enforcement middleware. Added `TenantPackageService` methods for live subscription querying on central DB (`getMaxUsers`, `getMaxWarehouses`, `getMaxInvoicesPerMonth`, `hasFeature`, `isGlobalFeatureEnabled`, `getPackageLimits`); created `EnforcePackageLimitService` orchestrating limits across user invitations, warehouse creations, and current-month sales invoice generations while preserving 100% ArchTest module decoupling; built `EnsurePackageLimit` (`package.limit:{resource}`) and `EnsureFeatureEnabled` (`feature:{flag}`) middleware aliases prioritized in `bootstrap/app.php`; wired limit middleware to `POST /api/v1/inventory/warehouses`, `POST /api/v1/sales/invoices`, quotation conversion, and user invitations; added global feature flag kill-switch support overriding package tiers; exposed active subscription limits and features in `HandleInertiaRequests` shared props. 100% CI gate passing across Pint (498 files clean), Larastan Level 8 (0 errors across 413 files), Pest (369 tests passed, 3,146 assertions, all 12 Arch tests clean), Vitest (81 tests passed across 18 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 second item.
 
