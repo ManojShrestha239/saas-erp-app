@@ -48,7 +48,7 @@ Request (acme.nexuserp.test)
 - Two named connections: `central` and `tenant`. Central models set `$connection = 'central'`; tenant models use `tenant` via a `UsesTenantConnection` trait. Never rely on the default connection.
 - Queued jobs carry `tenant_id` and re-initialize tenancy in `handle()` (use a `TenantAware` job trait/middleware). Cache keys, file paths, and broadcast channels are prefixed with the tenant ID.
 - Migrations are split: `database/migrations/central/` vs each module's `Database/Migrations/` (tenant). `php artisan tenants:migrate` iterates all tenants.
-- **Provisioning job** (idempotent): create DB → migrate → seed roles + default Chart of Accounts + settings → create owner → mark `active`. Failure → `provisioning_failed` with reason, retryable.
+- **Provisioning job** (idempotent): connects via least-privilege `provisioner` role (`CREATEDB` only, `NOSUPERUSER`) → create DB → migrate → seed roles + default Chart of Accounts + settings → create owner → mark `active`. Failure → `provisioning_failed` with reason, retryable.
 - Super Admin routes run on the central domain with no tenant bound.
 
 ## 3. Backend Architecture (Modular Monolith)

@@ -75,7 +75,7 @@
 
 ## Phase 7: Hardening, Docs & Release
 
-- [ ] Dedicated non-superuser PostgreSQL role with CREATEDB-only privilege for tenant provisioning.
+- [x] Dedicated non-superuser PostgreSQL role with CREATEDB-only privilege for tenant provisioning.
 - [ ] Security review (OWASP checklist, rate limits, signed URLs, headers).
 - [ ] Performance pass (indexes, N+1 audit with Telescope, query budgets).
 - [ ] Scribe API docs published; seed/demo tenant.

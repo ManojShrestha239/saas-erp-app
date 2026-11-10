@@ -129,6 +129,21 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        'provisioner' => env('DB_PROVISIONER_USERNAME') ? [
+            'driver' => 'pgsql',
+            'url' => env('DB_PROVISIONER_URL'),
+            'host' => env('DB_PROVISIONER_HOST', env('DB_HOST', '127.0.0.1')),
+            'port' => env('DB_PROVISIONER_PORT', env('DB_PORT', '5432')),
+            'database' => env('DB_PROVISIONER_DATABASE', 'postgres'),
+            'username' => env('DB_PROVISIONER_USERNAME'),
+            'password' => env('DB_PROVISIONER_PASSWORD', ''),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'search_path' => 'public',
+            'sslmode' => env('DB_SSLMODE', 'prefer'),
+        ] : null,
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

@@ -117,11 +117,12 @@ final class ProvisionTenantDatabase implements ShouldQueue
             throw new \InvalidArgumentException("Invalid database name: {$databaseName}");
         }
 
-        // Connect to postgres system db via central connection config (same host/credentials)
-        $config = config('database.connections.central');
-        /** @var array{host: string, port: int|string, username: string, password: string} $config */
+        // Connect to postgres system db using dedicated provisioner connection (or central fallback)
+        /** @var array{host: string, port: int|string, username: string, password: string, database?: string} $config */
+        $config = config('database.connections.provisioner') ?: config('database.connections.central');
+        $systemDb = $config['database'] ?? 'postgres';
         $pdo = new \PDO(
-            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+            dsn: sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $systemDb),
             username: (string) $config['username'],
             password: (string) $config['password'],
         );
@@ -138,7 +139,25 @@ final class ProvisionTenantDatabase implements ShouldQueue
         $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
 
         if ($exists === 0) {
-            $pdo->exec("CREATE DATABASE {$quotedName}");
+            $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
+            $isSameUser = $tenantUser === '' || $tenantUser === (string) $config['username'];
+
+            if (! $isSameUser) {
+                try {
+                    $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
+                    $pdo->exec("CREATE DATABASE {$quotedName} OWNER {$quotedUser}");
+                } catch (Throwable) {
+                    $pdo->exec("CREATE DATABASE {$quotedName}");
+                    try {
+                        $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
+                        $pdo->exec("GRANT ALL PRIVILEGES ON DATABASE {$quotedName} TO {$quotedUser}");
+                    } catch (Throwable) {
+                        // Best effort grant
+                    }
+                }
+            } else {
+                $pdo->exec("CREATE DATABASE {$quotedName}");
+            }
 
             Log::info('ProvisionTenantDatabase: created database', ['database' => $databaseName]);
         }

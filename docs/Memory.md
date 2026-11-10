@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 6: Super Admin Panel, Reports & Audit Logs (6 of 6 items completed — Phase 6 Complete!) · Active Task: FCM push helper for low-stock and overdue alerts (Completed)
-- **Last Completed Task:** `feat/fcm-push-alerts`: Implemented pure-Laravel FCM push notification engine (HTTP client) for low-stock and overdue alerts without external vendor SDKs (fulfilling Architecture §1 and PRD §3.9). Created forward-only tenant migration `fcm_device_tokens` and model `FcmDeviceToken` using `UsesTenantConnection` and `HasUlids`. Created `Shared\Services\FcmService` supporting single, multicast, and topic delivery via HTTP v1 API with automatic stale/unregistered token detection. Built `Modules\Auth\Services\FcmDeviceTokenService` providing role/permission token lookups while strictly preserving Pest ArchTest module boundary isolation. Built token registration endpoints `POST /api/v1/notifications/fcm-tokens` and `DELETE /api/v1/notifications/fcm-tokens`. Integrated `SendLowStockFcmAlert` listener onto `LowStockDetected` post-commit event. Built `OverdueInvoiceAlertService`, artisan command `alerts:send-overdue-invoices`, and queued job `SendOverdueInvoicesFcmAlertJob` notifying accountants and owners of past-due customer invoices. Frontend API and `useFcmToken` hook. 100% CI gate passing across Pint (559 files clean), Larastan Level 8 (0 errors across 472 files), Pest (28 notification & arch tests passed, 65 assertions), Vitest (100 tests passed across 22 files), ESLint, TypeScript, and Vite production build.
-- **Current Focus:** Phase 6 Complete! Ready for user approval to begin Phase 7: Hardening, Docs & Release.
-- **Working branch:** `feat/fcm-push-alerts`
+- **Active Phase:** Phase 7: Hardening, Docs & Release (1 of 6 items completed) · Active Task: Dedicated non-superuser PostgreSQL role with CREATEDB-only privilege for tenant provisioning (Completed)
+- **Last Completed Task:** `feat/hardening-provisioner-role`: Implemented dedicated least-privilege PostgreSQL connection and non-superuser role (`nexuserp_provisioner`) for tenant database provisioning (resolving Decision #13 and PRD Non-Functional Security requirements). Added `provisioner` database connection config in `config/database.php` and `.env.example`. Added `docker/postgres/01-init-provisioner-role.sql` creating role with `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION`. Updated `ProvisionTenantDatabase` to connect via the dedicated provisioner connection and safely handle tenant ownership/privileges. Added comprehensive Pest feature tests in `ProvisionerRoleTest.php` asserting that database creation and migrations succeed under least privilege while superuser operations (e.g. `ALTER SYSTEM`, role manipulation) are strictly blocked with SQLSTATE 42501. 100% CI gate passing across Pint (560 files clean), Larastan Level 8 (0 errors across 472 files), Pest (29 tenancy tests passed, 196 assertions; all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, TypeScript, and Vite production build.
+- **Current Focus:** Phase 7 Item 2: Security review (OWASP checklist, rate limits, signed URLs, headers).
+- **Working branch:** `feat/hardening-provisioner-role`
 
 ## Architectural Decisions (Decision Log)
 
@@ -70,6 +70,7 @@
 | 48  | Financial & Operational Reporting Architecture (`feat/financial-and-inventory-reports`): Central reporting coordinator in `Modules\Reports` delegating to public services in `Accounting` (`FinancialReportService`), `Contacts` (`AgingReportService`), and `Inventory` (`InventoryCostingService`, `StockService`) without importing foreign models (100% ArchTest compliant). Minor units integer cents (`*_cents` BIGINT) across all endpoints with zero floats. Mathematical balance validation: Trial Balance asserts debits = credits ($net\_diff = 0$); Balance Sheet dynamically computes lifetime net income into current period retained earnings satisfying $Assets = Liabilities + Equity$; AR Aging and AP Aging calculate sub-ledger overdue brackets (`Current`, `1–30`, `31–60`, `61–90`, `90+`) reconciling with GL Control Accounts 1130 and 2110; Stock Valuation calculates moving weighted average cost reconciling with GL Control Account 1150. Role-based access control enforces `reports.financial` for financial statements and aging vs `reports.stock` for stock reports. Responsive frontend tabbed interface on `/reports`. | Guarantees financial integrity and double-entry equilibrium; automates control account reconciliation; provides instant operational visibility without float rounding errors; preserves strict modular monolith boundaries. |
 | 49  | Queued Report Exports & Signed Download Engine (`feat/reports-export-pdf-excel`): Asynchronous PDF (Browsershot) and Excel (Maatwebsite) report export engine on the dedicated `'reports'` queue via `GenerateReportExportJob`. Storage paths strictly tenant-isolated (`tenants/{tenant_id}/exports/{export_id}.{format}`). Temporary signed download URLs (`URL::temporarySignedRoute`) expiring in 60 minutes. Defense-in-depth tenant boundary verification: even if signed URL is forged or guessed, tenant isolation rejects cross-tenant download with 404/403. Reusable `<ReportExportButtons />` frontend component integrated across all 6 viewers with polling and browser download trigger. | Prevents web request timeouts on large report calculations; preserves tenant filesystem boundaries; provides safe, expiring temporary download links without exposing raw filesystem paths or bypassing tenant boundaries. |
 | 50  | Pure-Laravel FCM Push Alert Architecture (`feat/fcm-push-alerts`): Dedicated HTTP client helper in `Shared\Services\FcmService` sending Google FCM HTTP v1 notifications without third-party vendor SDKs. Forward-only `fcm_device_tokens` table in tenant database with ULID PK and strict tenant isolation. Re-usable public `FcmDeviceTokenService` in `Modules\Auth\Services` resolving device tokens for user roles (`WarehouseManager`, `Owner`, `Accountant`) and permissions without leaking models across module boundaries (100% ArchTest compliant). Low-stock event listener `SendLowStockFcmAlert` wired to `LowStockDetected` (`ShouldDispatchAfterCommit`). Scheduled artisan command `alerts:send-overdue-invoices` and queued `SendOverdueInvoicesFcmAlertJob` scanning overdue posted invoices and notifying accountants and owners. Automatic pruning of unregistered/invalid tokens returned by FCM. Frontend API client and `useFcmToken` hook. | Fulfills PRD §3.9 and Architecture.md §1 with zero external vendor SDK dependencies; enforces strict tenant boundary isolation; guarantees real-time shortage and past-due receivables visibility; maintains zero module model leakage. |
+| 51  | Dedicated Least-Privilege Provisioner Connection & Role (`feat/hardening-provisioner-role`): Added configurable `provisioner` PostgreSQL connection in `database.php` (`DB_PROVISIONER_USERNAME` / `DB_PROVISIONER_PASSWORD`) and SQL initialization `docker/postgres/01-init-provisioner-role.sql` creating role `nexuserp_provisioner` with `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION`. Refactored `ProvisionTenantDatabase` to connect using provisioner connection and safely handle tenant ownership/privileges without exposing superuser privileges. Verified via Pest security tests that non-superuser provisioner can provision databases while strictly blocked from administrative superuser commands (SQLSTATE 42501). Resolves Decision #13. | Eliminates superuser exposure in tenant provisioning, enforcing the principle of least privilege in production deployments. |
 
 ## Conventions Locked In
 
@@ -90,41 +91,26 @@
 
 ## Next Steps
 
-1. User review and approval of Phase 6 completion.
-2. Phase 7: Hardening, Docs & Release (dedicated CREATEDB non-superuser PostgreSQL role, OWASP security pass, query performance pass with Telescope, Scribe API documentation, backups & restore drill, full Playwright E2E suite).
+1. Phase 7 Item 2: Security review (OWASP checklist, rate limits, signed URLs, security headers).
+2. Phase 7 Item 3: Performance pass (indexes, N+1 audit with Telescope, query budgets).
+3. Phase 7 Item 4: Scribe API docs published; seed/demo tenant.
+4. Phase 7 Item 5: Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
+5. Phase 7 Item 6: Full Playwright suite for all PRD §5 flows.
 
 ## Key Files Touched (latest)
 
-- `backend/database/migrations/tenant/2026_11_10_000001_create_tenant_fcm_device_tokens_table.php`
-- `backend/Modules/Auth/Models/FcmDeviceToken.php`
-- `backend/Modules/Auth/Models/TenantUser.php`
-- `backend/Modules/Auth/Services/FcmDeviceTokenService.php`
-- `backend/Modules/Auth/Http/Requests/RegisterFcmTokenRequest.php`
-- `backend/Modules/Auth/Http/Requests/DeleteFcmTokenRequest.php`
-- `backend/Modules/Auth/Http/Controllers/FcmTokenController.php`
-- `backend/Modules/Auth/Routes/api.php`
-- `backend/Shared/Services/FcmService.php`
-- `backend/Modules/Inventory/Listeners/SendLowStockFcmAlert.php`
-- `backend/Modules/Inventory/Providers/InventoryServiceProvider.php`
-- `backend/Modules/Sales/Services/OverdueInvoiceAlertService.php`
-- `backend/Modules/Sales/Commands/SendOverdueInvoicesFcmAlertCommand.php`
-- `backend/Modules/Sales/Jobs/SendOverdueInvoicesFcmAlertJob.php`
-- `backend/Modules/Sales/Providers/SalesServiceProvider.php`
-- `backend/Modules/Tenancy/Services/TenantManagementService.php`
-- `backend/config/services.php`
-- `backend/routes/console.php`
-- `backend/tests/Feature/Notifications/FcmServiceTest.php`
-- `backend/tests/Feature/Notifications/FcmDeviceTokenTest.php`
-- `backend/tests/Feature/Notifications/LowStockFcmAlertTest.php`
-- `backend/tests/Feature/Notifications/OverdueInvoicesFcmAlertTest.php`
-- `frontend/src/features/notifications/types/notifications.types.ts`
-- `frontend/src/features/notifications/api/fcmApi.ts`
-- `frontend/src/features/notifications/hooks/useFcmToken.ts`
-- `frontend/src/features/notifications/hooks/__tests__/useFcmToken.test.ts`
+- `backend/config/database.php`
+- `backend/.env.example`
+- `backend/Modules/Tenancy/Jobs/ProvisionTenantDatabase.php`
+- `docker/postgres/01-init-provisioner-role.sql`
+- `backend/tests/Feature/Tenancy/ProvisionerRoleTest.php`
+- `docs/Architecture.md`
 - `docs/Phases.md`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-10`: `feat/hardening-provisioner-role`: Implemented dedicated least-privilege PostgreSQL connection and non-superuser role (`nexuserp_provisioner`) for tenant database provisioning, resolving Decision #13 and Phase 7 Item 1. Added configurable `provisioner` connection in `config/database.php` and `.env.example`. Added `docker/postgres/01-init-provisioner-role.sql` defining `nexuserp_provisioner` with `LOGIN CREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION`. Refactored `ProvisionTenantDatabase` to connect using provisioner connection and safely assign database ownership and privileges to tenant connection user. Created comprehensive Pest feature tests in `ProvisionerRoleTest.php` asserting that database creation and migrations succeed under least privilege while superuser operations (e.g. `ALTER SYSTEM`, role manipulation) are strictly blocked with SQLSTATE 42501. 100% CI gate passing across Pint (560 files clean), Larastan Level 8 (0 errors across 472 files), Pest (29 tenancy tests passed, 196 assertions; all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, TypeScript, and Vite production build. Ticked Phase 7 first item.
 
 - `2026-11-10`: `feat/fcm-push-alerts`: Implemented pure-Laravel FCM push notification helper for low-stock and overdue alerts without external third-party SDKs (fulfilling Architecture §1 and PRD §3.9). Created forward-only tenant migration `fcm_device_tokens` and model `FcmDeviceToken` using `UsesTenantConnection` and `HasUlids`. Created `Shared\Services\FcmService` supporting single, multicast, and topic push notifications via HTTP v1 API with automatic stale/unregistered token detection and error handling. Built `Modules\Auth\Services\FcmDeviceTokenService` providing role/permission token lookups while strictly preserving Pest ArchTest module boundary isolation. Built token registration endpoints `POST /api/v1/notifications/fcm-tokens` and `DELETE /api/v1/notifications/fcm-tokens`. Integrated `SendLowStockFcmAlert` listener onto `LowStockDetected` post-commit event. Built `OverdueInvoiceAlertService`, scheduled artisan command `alerts:send-overdue-invoices`, and queued job `SendOverdueInvoicesFcmAlertJob` notifying accountants and owners of past-due customer invoices. Frontend API and `useFcmToken` hook. 100% CI gate passing across Pint (559 files clean), Larastan Level 8 (0 errors across 472 files), Pest (28 notification & arch tests passed, 65 assertions), Vitest (100 tests passed across 22 files), ESLint, TypeScript, and Vite production build. Ticked Phase 6 sixth item — Phase 6 Complete!
 
