@@ -18,7 +18,9 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 use Shared\Exceptions\ApiExceptionRenderer;
 use Shared\Http\Middleware\EnsureCentralDomain;
+use Shared\Http\Middleware\EnsureFeatureEnabled;
 use Shared\Http\Middleware\EnsureJsonRequest;
+use Shared\Http\Middleware\EnsurePackageLimit;
 use Shared\Http\Middleware\HandleInertiaRequests;
 use Shared\Http\Middleware\IdentifyTenant;
 
@@ -55,6 +57,8 @@ return Application::configure(basePath: dirname(__DIR__))
             AuthenticatesSessions::class,
             SubstituteBindings::class,
             Authorize::class,
+            EnsureFeatureEnabled::class,
+            EnsurePackageLimit::class,
         ]);
 
         $middleware->alias([
@@ -62,6 +66,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant' => IdentifyTenant::class,
             'identify.tenant' => IdentifyTenant::class,
             'central.domain' => EnsureCentralDomain::class,
+            'feature' => EnsureFeatureEnabled::class,
+            'package.limit' => EnsurePackageLimit::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

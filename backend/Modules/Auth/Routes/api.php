@@ -50,7 +50,9 @@ Route::middleware([
     'auth:web',
 ])->prefix('users')->group(function (): void {
     Route::get('', [TenantUserController::class, 'index'])->name('users.index');
-    Route::post('invite', [TenantUserController::class, 'invite'])->name('users.invite');
+    Route::post('invite', [TenantUserController::class, 'invite'])
+        ->middleware('package.limit:users')
+        ->name('users.invite');
     Route::patch('{id}/role', [TenantUserController::class, 'updateRole'])->name('users.update-role');
     Route::patch('{id}/status', [TenantUserController::class, 'updateStatus'])->name('users.update-status');
 });

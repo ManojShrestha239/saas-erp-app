@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Modules\Accounting\Http\Controllers;
 
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -42,24 +41,17 @@ final class VatReturnController
         $filters = $request->query();
         $returns = $this->vatReturnService->list($filters);
 
-        if ($returns instanceof LengthAwarePaginator) {
-            $meta = [
-                'current_page' => $returns->currentPage(),
-                'per_page' => $returns->perPage(),
-                'total' => $returns->total(),
-                'last_page' => $returns->lastPage(),
-            ];
-
-            return ApiResponse::success(
-                data: VatReturnResource::collection($returns->items()),
-                message: 'VAT returns retrieved successfully.',
-                meta: $meta,
-            );
-        }
+        $meta = [
+            'current_page' => $returns->currentPage(),
+            'per_page' => $returns->perPage(),
+            'total' => $returns->total(),
+            'last_page' => $returns->lastPage(),
+        ];
 
         return ApiResponse::success(
-            data: VatReturnResource::collection($returns),
-            message: 'VAT returns retrieved successfully.'
+            data: VatReturnResource::collection($returns->items()),
+            message: 'VAT returns retrieved successfully.',
+            meta: $meta,
         );
     }
 

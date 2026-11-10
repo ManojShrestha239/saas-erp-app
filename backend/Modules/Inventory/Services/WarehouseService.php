@@ -91,6 +91,11 @@ final class WarehouseService
         }, 3);
     }
 
+    public function count(): int
+    {
+        return Warehouse::query()->count();
+    }
+
     public function findById(string $id): ?Warehouse
     {
         return Warehouse::find($id);

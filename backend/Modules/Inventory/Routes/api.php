@@ -30,7 +30,10 @@ Route::middleware([
     Route::post('products/import', [ProductCsvImportController::class, 'store'])->name('products.import.store');
     Route::get('products/import/{id}', [ProductCsvImportController::class, 'show'])->name('products.import.show');
     Route::apiResource('products', ProductController::class);
-    Route::apiResource('warehouses', WarehouseController::class);
+    Route::post('warehouses', [WarehouseController::class, 'store'])
+        ->middleware('package.limit:warehouses')
+        ->name('warehouses.store');
+    Route::apiResource('warehouses', WarehouseController::class)->except(['store']);
 
     Route::get('stock-levels', [StockController::class, 'levels'])->name('stock-levels.index');
     Route::get('low-stock', [StockController::class, 'lowStock'])->name('stock-levels.low-stock');

@@ -27,11 +27,15 @@ Route::middleware([
     Route::post('sales/quotations/{id}/send', [SalesQuotationController::class, 'send'])->name('sales.quotations.send');
     Route::post('sales/quotations/{id}/accept', [SalesQuotationController::class, 'accept'])->name('sales.quotations.accept');
     Route::post('sales/quotations/{id}/reject', [SalesQuotationController::class, 'reject'])->name('sales.quotations.reject');
-    Route::post('sales/quotations/{id}/convert', [SalesQuotationController::class, 'convert'])->name('sales.quotations.convert');
+    Route::post('sales/quotations/{id}/convert', [SalesQuotationController::class, 'convert'])
+        ->middleware('package.limit:invoices')
+        ->name('sales.quotations.convert');
 
     // Sales Invoices
     Route::get('sales/invoices', [SalesInvoiceController::class, 'index'])->name('sales.invoices.index');
-    Route::post('sales/invoices', [SalesInvoiceController::class, 'store'])->name('sales.invoices.store');
+    Route::post('sales/invoices', [SalesInvoiceController::class, 'store'])
+        ->middleware('package.limit:invoices')
+        ->name('sales.invoices.store');
     Route::get('sales/invoices/{id}', [SalesInvoiceController::class, 'show'])->name('sales.invoices.show');
     Route::get('sales/invoices/{id}/pdf', [SalesInvoiceController::class, 'pdf'])->name('sales.invoices.pdf');
     Route::put('sales/invoices/{id}', [SalesInvoiceController::class, 'update'])->name('sales.invoices.update');

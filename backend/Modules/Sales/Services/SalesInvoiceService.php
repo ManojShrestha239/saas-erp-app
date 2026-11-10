@@ -785,4 +785,14 @@ final class SalesInvoiceService
 
         return $result;
     }
+
+    public function countCurrentMonthInvoices(): int
+    {
+        return SalesInvoice::query()
+            ->whereBetween('created_at', [
+                now()->startOfMonth(),
+                now()->endOfMonth(),
+            ])
+            ->count();
+    }
 }

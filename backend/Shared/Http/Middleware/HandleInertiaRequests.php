@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
+use Modules\Tenancy\Services\TenantPackageService;
 use Shared\Tenancy\TenantContext;
 
 final class HandleInertiaRequests extends Middleware
@@ -47,6 +48,18 @@ final class HandleInertiaRequests extends Middleware
                     'id' => (string) $tenantContext->id,
                     'slug' => $tenantContext->slug,
                 ] : null;
+            },
+            'subscription' => function (): ?array {
+                $tenantContext = TenantContext::get();
+
+                if ($tenantContext === null) {
+                    return null;
+                }
+
+                /** @var TenantPackageService $packageService */
+                $packageService = app(TenantPackageService::class);
+
+                return $packageService->getPackageLimits($tenantContext->id);
             },
             'flash' => [
                 'success' => fn (): mixed => $request->session()->get('success'),
