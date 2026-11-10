@@ -8,6 +8,7 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Controllers\AuthController;
 use Modules\Auth\Http\Controllers\EmailVerificationController;
+use Modules\Auth\Http\Controllers\FcmTokenController;
 use Modules\Auth\Http\Controllers\GoogleAuthController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
 use Modules\Auth\Http\Controllers\TenantUserController;
@@ -55,4 +56,16 @@ Route::middleware([
         ->name('users.invite');
     Route::patch('{id}/role', [TenantUserController::class, 'updateRole'])->name('users.update-role');
     Route::patch('{id}/status', [TenantUserController::class, 'updateStatus'])->name('users.update-status');
+});
+
+Route::middleware([
+    'identify.tenant',
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    EnsureTenantSession::class,
+    'auth:web',
+])->prefix('notifications')->group(function (): void {
+    Route::post('fcm-tokens', [FcmTokenController::class, 'register'])->name('notifications.fcm-tokens.register');
+    Route::delete('fcm-tokens', [FcmTokenController::class, 'destroy'])->name('notifications.fcm-tokens.destroy');
 });

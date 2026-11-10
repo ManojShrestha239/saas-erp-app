@@ -76,4 +76,12 @@ final class TenantUser extends Model implements AuthenticatableContract, Authori
     {
         return $this->hasMany(OAuthAccount::class, 'user_id');
     }
+
+    /**
+     * @return HasMany<FcmDeviceToken, $this>
+     */
+    public function fcmDeviceTokens(): HasMany
+    {
+        return $this->hasMany(FcmDeviceToken::class, 'user_id');
+    }
 }

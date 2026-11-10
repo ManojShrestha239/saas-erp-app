@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Modules\Inventory\Events\LowStockDetected;
 use Modules\Inventory\Listeners\PublishLowStockAlertToStream;
+use Modules\Inventory\Listeners\SendLowStockFcmAlert;
 use Modules\Inventory\Models\Category;
 use Modules\Inventory\Models\Product;
 use Modules\Inventory\Models\StockAdjustment;
@@ -43,5 +44,6 @@ final class InventoryServiceProvider extends ModuleServiceProvider
         Gate::policy(StockAdjustment::class, StockAdjustmentPolicy::class);
 
         Event::listen(LowStockDetected::class, PublishLowStockAlertToStream::class);
+        Event::listen(LowStockDetected::class, SendLowStockFcmAlert::class);
     }
 }

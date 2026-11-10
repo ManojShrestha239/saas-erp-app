@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Modules\Tenancy\Services;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Modules\Tenancy\Jobs\ProvisionTenantDatabase;
 use Modules\Tenancy\Models\Tenant;
 use Shared\Exceptions\ApiException;
 use Shared\Http\Middleware\IdentifyTenant;
+use Shared\Tenancy\TenantContext;
 use Shared\Utils\HttpStatus;
 
 final class TenantManagementService
@@ -144,6 +146,42 @@ final class TenantManagementService
             'provisioning' => (int) ($counts->provisioning ?? 0),
             'provisioning_failed' => (int) ($counts->provisioning_failed ?? 0),
         ];
+    }
+
+    /**
+     * @return list<TenantContext>
+     */
+    public function getActiveTenantContexts(): array
+    {
+        /** @var Collection<int, Tenant> $tenants */
+        $tenants = Tenant::where('status', 'active')->get();
+
+        $contexts = [];
+        foreach ($tenants as $tenant) {
+            $contexts[] = new TenantContext(
+                id: $tenant->id,
+                slug: $tenant->slug,
+                databaseName: $tenant->database_name,
+            );
+        }
+
+        return $contexts;
+    }
+
+    public function findTenantContext(string $slugOrId): ?TenantContext
+    {
+        /** @var Tenant|null $tenant */
+        $tenant = Tenant::where('id', $slugOrId)->orWhere('slug', $slugOrId)->first();
+
+        if ($tenant === null) {
+            return null;
+        }
+
+        return new TenantContext(
+            id: $tenant->id,
+            slug: $tenant->slug,
+            databaseName: $tenant->database_name,
+        );
     }
 
     private function invalidateTenantCaches(Tenant $tenant): void

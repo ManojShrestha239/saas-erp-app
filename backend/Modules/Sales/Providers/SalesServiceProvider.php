@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Sales\Providers;
 
 use Illuminate\Support\Facades\Gate;
+use Modules\Sales\Commands\SendOverdueInvoicesFcmAlertCommand;
 use Modules\Sales\Models\CreditNote;
 use Modules\Sales\Models\SalesInvoice;
 use Modules\Sales\Models\SalesQuotation;
@@ -27,5 +28,11 @@ final class SalesServiceProvider extends ModuleServiceProvider
         Gate::policy(SalesQuotation::class, SalesQuotationPolicy::class);
         Gate::policy(SalesInvoice::class, SalesInvoicePolicy::class);
         Gate::policy(CreditNote::class, CreditNotePolicy::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                SendOverdueInvoicesFcmAlertCommand::class,
+            ]);
+        }
     }
 }

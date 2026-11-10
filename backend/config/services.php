@@ -47,4 +47,12 @@ return [
         'node_modules_path' => env('NODE_MODULES_PATH', '/usr/local/lib/node_modules'),
     ],
 
+    'fcm' => [
+        'project_id' => env('FCM_PROJECT_ID', 'nexuserp-app'),
+        'server_key' => env('FCM_SERVER_KEY'),
+        'bearer_token' => env('FCM_BEARER_TOKEN'),
+        'api_url' => env('FCM_API_URL', 'https://fcm.googleapis.com/v1/projects'),
+        'timeout' => (int) env('FCM_TIMEOUT', 10),
+    ],
+
 ];
