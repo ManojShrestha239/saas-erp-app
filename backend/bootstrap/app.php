@@ -24,6 +24,7 @@ use Shared\Http\Middleware\EnsureJsonRequest;
 use Shared\Http\Middleware\EnsurePackageLimit;
 use Shared\Http\Middleware\HandleInertiaRequests;
 use Shared\Http\Middleware\IdentifyTenant;
+use Shared\Http\Middleware\SecurityHeadersMiddleware;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -33,6 +34,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(SecurityHeadersMiddleware::class);
+
         $middleware->web(append: [
             HandleInertiaRequests::class,
         ]);
