@@ -11,10 +11,10 @@
 
 ## Current Status
 
-- **Active Phase:** Phase 7: Hardening, Docs & Release (4 of 6 items completed) · Active Task: Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod
-- **Last Completed Task:** `feat/scribe-api-docs-demo-tenant`: Compiled static Scribe API documentation (`public/docs/index.html`, `openapi.yaml`, `collection.json`) under `http://demo.nexuserp.test/docs`. Created `Database\Seeders\DemoTenantSeeder` and artisan command `tenants:seed-demo {--fresh}` in `Modules\Tenancy\Commands\SeedDemoTenantCommand` to provision and seed `demo.nexuserp.test` (`tenant_demo`) with rich operational ERP data: 5 users with roles (`owner@`, `admin@`, `accountant@`, `warehouse@`, `sales@` with password `Demo12345!`), CoA, warehouses, products, stock movements, balanced GL opening journal entry, contacts, purchasing cycle (PO -> GRN -> posted Supplier Bill), sales cycle (Quotation -> current & overdue posted Sales Invoices), and payments with multi-document allocations. Verified perfect General Ledger equilibrium ($total\_debits === total\_credits === \$139,922.70$). Authored automated Pest feature tests in `DemoTenantSeederTest.php` (3 tests, 63 assertions). 100% CI gate passing across Pint (567 files clean), Larastan Level 8 (0 errors across 475 files), Pest (429 tests passed, 3,591 assertions, all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, and TypeScript.
-- **Current Focus:** Phase 7 Item 5: Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
-- **Working branch:** `feat/scribe-api-docs-demo-tenant`
+- **Active Phase:** Phase 7: Hardening, Docs & Release (5 of 6 items completed) · Active Task: Full Playwright suite for all PRD §5 flows
+- **Last Completed Task:** `feat/backups-restore-production-docker`: Implemented comprehensive multi-tenant backup and disaster recovery tooling (`BackupService`, `tenants:backup`, `tenants:restore`, `tenants:restore-drill`), production multi-stage Dockerfile, Supervisor daemon configuration (PHP-FPM, Horizon queue worker, scheduler), production Nginx configuration with TLS/HTTP2 and asset caching, `docker-compose.prod.yml`, production environment safeguards disabling Telescope/Debugbar, unauthenticated health diagnostics endpoint `GET /api/v1/health`, and comprehensive architecture operations guide in `docs/Deployment.md`. Authored automated Pest feature tests in `BackupRestoreTest.php` and `ProductionEnvironmentTest.php` (10 tests, 30 assertions). 100% CI gate passing across Pint (574 files clean), Larastan Level 8 (0 errors across 480 files), Pest (439 tests passed, 3,621 assertions, all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, and TypeScript.
+- **Current Focus:** Phase 7 Item 6: Full Playwright suite for all PRD §5 flows.
+- **Working branch:** `feat/backups-restore-production-docker`
 
 ## Architectural Decisions (Decision Log)
 
@@ -74,6 +74,7 @@
 | 52  | OWASP Top 10 Security Architecture & Global Perimeter Hardening (`feat/security-hardening-owasp`): Enforced global security headers middleware (`SecurityHeadersMiddleware` adding `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `X-XSS-Protection: 0`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `Content-Security-Policy`, and `Strict-Transport-Security` on HTTPS). Configured perimeter rate limiters (`api`: 120/min per tenant/IP, `auth`: 5/min per IP, `downloads`: 60/min per IP) in `AppServiceProvider`. Formulated full OWASP Top 10 compliance specification in `docs/Security.md`. Added Pest feature tests verifying header emissions, HTTP 429 throttling, and cryptographic signature tampering/expiration rejections. | Fulfills PRD Non-Functional Security requirements and protects against clickjacking, MIME sniffing, brute force credential attacks, and unauthorized signed URL alterations. |
 | 53  | Performance Pass, Database Composite Indexes & Constant O(1) Query Budgets (`feat/performance-indexes-n-plus-one`): Added forward-only migration `2026_11_10_000002_add_performance_indexes.php` adding single and composite B-tree indexes across core tables (`sales_invoices`, `sales_quotations`, `supplier_bills`, `purchase_orders`, `stock_movements`, `journal_entry_lines`, `credit_notes`, `debit_notes`, `products`, `contacts`, `activity_log`). Unified `ProvisionTenantDatabase` migration runner to pass array of all valid paths to `Artisan::call('migrate')` directly, preserving chronological migration execution order across modules and tenant migrations. Added automated Pest feature tests in `QueryBudgetsTest.php` asserting index presence and constant O(1) query budgets on high-volume listing endpoints (`sales/invoices` <= 4, `purchasing/bills` <= 4, `inventory/stock-movements` <= 5) and batched aggregations (Trial Balance <= 3, AR Aging). Authored `docs/Performance.md`. | Eliminates N+1 query regressions; guarantees fast, indexed lookups for overdue alerts, aging brackets, VAT reports, and audit trails; establishes strict query budget ceilings in automated testing. |
 | 54  | Scribe API Documentation & Rich Demo Tenant Architecture (`feat/scribe-api-docs-demo-tenant`): Installed and configured `knuckleswtf/scribe` generating static HTML, Postman collection, and OpenAPI specification in `public/docs/` (`type => 'static'`, base URL `http://demo.nexuserp.test`), disabling live response calls to prevent tenant context cold-start issues. Built `DemoTenantSeeder` and artisan command `tenants:seed-demo {--fresh}` provisioning `demo.nexuserp.test` (`tenant_demo`), 5 users with roles (`owner@`, `admin@`, `accountant@`, `warehouse@`, `sales@`), opening inventory movements + opening GL journal entry, 4 contacts, full purchasing cycle (PO -> GRN -> posted Bill), full sales cycle (Quotation -> current & overdue posted Invoices), and payments with multi-document allocations. Verified 100% General Ledger balance ($total\_debits === total\_credits === \$139,922.70$). Added automated Pest feature test in `DemoTenantSeederTest`. | Provides clean, interactive API documentation and an immediate, fully functional multi-persona demo environment with zero manual database seeding. |
+| 55  | Multi-Tenant Disaster Recovery, Process Supervision & Production Container Architecture (`feat/backups-restore-production-docker`): Multi-tenant backup engine in `Modules\Tenancy\Services\BackupService` using `pg_dump` and `gunzip | psql` pipelines with `PGPASSWORD` isolation and strict alphanumeric database name assertion. Automated disaster recovery restore drill (`tenants:restore-drill`) dumps live tenant, provisions ephemeral drill database (`tenant_drill_*`), restores tables, verifies schema integrity, and cleanly destroys drill DB in under 300 ms. Production multi-stage `Dockerfile` (Node 22 asset compilation, Composer `--no-dev --optimize-autoloader`, PHP 8.4-FPM with OPcache timestamps disabled). Process supervision via `supervisord` managing PHP-FPM, Horizon queue workers (`default`, `reports`, `notifications`), and 60-second scheduler runner. Production Nginx proxy with TLS 1.3, security headers, and 1-year immutable caching on `/build/`. Diagnostic health probe `GET /api/v1/health` verifying central DB, Redis, storage, OPcache, and production debug/telescope gating. | Guarantees verifiable RTO/RPO disaster recovery compliance without third-party vendor lock-in; provides reproducible containerized production deployments with background worker reliability and production performance optimizations. |
 
 ## Conventions Locked In
 
@@ -94,21 +95,26 @@
 
 ## Next Steps
 
-1. Phase 7 Item 5: Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
-2. Phase 7 Item 6: Full Playwright suite for all PRD §5 flows.
+1. Phase 7 Item 6: Full Playwright suite for all PRD §5 flows.
 
 ## Key Files Touched (latest)
 
-- `backend/config/scribe.php`
-- `backend/Modules/Tenancy/Commands/SeedDemoTenantCommand.php`
-- `backend/database/seeders/DemoTenantSeeder.php`
-- `backend/tests/Feature/Tooling/DemoTenantSeederTest.php`
-- `backend/public/docs/index.html`
-- `backend/public/docs/openapi.yaml`
-- `docs/Phases.md`
-- `docs/Memory.md`
+- `backend/Modules/Tenancy/Services/BackupService.php`
+- `backend/Modules/Tenancy/Commands/BackupTenantDatabaseCommand.php`
+- `backend/Modules/Tenancy/Commands/RestoreTenantDatabaseCommand.php`
+- `backend/Modules/Tenancy/Commands/RestoreDrillCommand.php`
+- `backend/Shared/Http/Controllers/HealthController.php`
+- `docker/production/Dockerfile`
+- `docker/production/supervisor/supervisord.conf`
+- `docker/production/nginx/production.conf`
+- `docker-compose.prod.yml`
+- `docs/Deployment.md`
+- `backend/tests/Feature/Tenancy/BackupRestoreTest.php`
+- `backend/tests/Feature/Security/ProductionEnvironmentTest.php`
 
 ## Session Log (newest first)
+
+- `2026-11-10`: `feat/backups-restore-production-docker`: Implemented comprehensive multi-tenant backup and disaster recovery tooling (`BackupService`, `tenants:backup`, `tenants:restore`, `tenants:restore-drill`), production multi-stage Dockerfile, Supervisor daemon configuration (PHP-FPM, Horizon queue worker, scheduler), production Nginx configuration with TLS/HTTP2, asset caching, `docker-compose.prod.yml`, production environment safeguards disabling Telescope/Debugbar, unauthenticated health diagnostics endpoint `GET /api/v1/health`, and comprehensive architecture operations guide in `docs/Deployment.md`. Authored automated Pest feature tests in `BackupRestoreTest.php` and `ProductionEnvironmentTest.php` (10 tests, 30 assertions). 100% CI gate passing across Pint (574 files clean), Larastan Level 8 (0 errors across 480 files), Pest (439 tests passed, 3,621 assertions, all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, and TypeScript. Ticked Phase 7 fifth item.
 
 - `2026-11-10`: `feat/scribe-api-docs-demo-tenant`: Published static Scribe API documentation (`public/docs/index.html`, `openapi.yaml`, `collection.json`) under `http://demo.nexuserp.test/docs`. Created `DemoTenantSeeder` and artisan command `tenants:seed-demo {--fresh}` in `SeedDemoTenantCommand` to provision and seed `demo.nexuserp.test` (`tenant_demo`) with rich operational ERP data: 5 users with roles (`owner@`, `admin@`, `accountant@`, `warehouse@`, `sales@` with password `Demo12345!`), CoA, warehouses, products, stock movements, balanced GL opening journal entry, contacts, purchasing cycle (PO -> GRN -> posted Supplier Bill), sales cycle (Quotation -> current & overdue posted Sales Invoices), and payments with multi-document allocations. Verified perfect General Ledger equilibrium ($total\_debits === total\_credits === \$139,922.70$). Authored automated Pest feature tests in `DemoTenantSeederTest.php` (3 tests, 63 assertions). 100% CI gate passing across Pint (567 files clean), Larastan Level 8 (0 errors across 475 files), Pest (429 tests passed, 3,591 assertions, all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, and TypeScript. Ticked Phase 7 fourth item.
 

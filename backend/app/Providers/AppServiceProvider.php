@@ -26,6 +26,15 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureRateLimiting();
+        $this->enforceProductionSafeguards();
+    }
+
+    protected function enforceProductionSafeguards(): void
+    {
+        if ($this->app->isProduction()) {
+            config(['telescope.enabled' => false]);
+            config(['debugbar.enabled' => false]);
+        }
     }
 
     protected function configureRateLimiting(): void

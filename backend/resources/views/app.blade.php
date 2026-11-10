@@ -10,7 +10,7 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-        @if (app()->environment('local', 'testing'))
+        @if (app()->environment('local'))
             <script type="module">
                 import RefreshRuntime from 'http://localhost:5173/@react-refresh'
                 RefreshRuntime.injectIntoGlobalHook(window)
@@ -20,6 +20,23 @@
             </script>
             <script type="module" src="http://localhost:5173/@@vite/client"></script>
             <script type="module" src="http://localhost:5173/src/app.tsx"></script>
+        @else
+            @php
+                $manifestPath = public_path('build/.vite/manifest.json');
+                if (! file_exists($manifestPath)) {
+                    $manifestPath = public_path('build/manifest.json');
+                }
+                $manifest = file_exists($manifestPath) ? json_decode((string) file_get_contents($manifestPath), true) : [];
+                $entry = $manifest['index.html'] ?? $manifest['src/app.tsx'] ?? null;
+            @endphp
+            @if ($entry)
+                @if (! empty($entry['css']))
+                    @foreach ($entry['css'] as $cssFile)
+                        <link rel="stylesheet" href="{{ asset('build/' . $cssFile) }}">
+                    @endforeach
+                @endif
+                <script type="module" src="{{ asset('build/' . $entry['file']) }}"></script>
+            @endif
         @endif
 
         @inertiaHead

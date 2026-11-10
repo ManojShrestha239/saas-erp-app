@@ -79,6 +79,6 @@
 - [x] Security review (OWASP checklist, rate limits, signed URLs, headers).
 - [x] Performance pass (indexes, N+1 audit with Telescope, query budgets).
 - [x] Scribe API docs published; seed/demo tenant.
-- [ ] Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
+- [x] Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
 - [ ] Full Playwright suite for all PRD §5 flows.
 - **Exit criteria:** all CI gates green; restore drill succeeded; launch checklist signed off by the user.

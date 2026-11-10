@@ -21,6 +21,11 @@ export default defineConfig({
       usePolling: true,
     },
   },
+  build: {
+    manifest: true,
+    outDir: '../backend/public/build',
+    emptyOutDir: true,
+  },
   test: {
     globals: true,
     environment: 'jsdom',

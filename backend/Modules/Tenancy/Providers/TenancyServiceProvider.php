@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Modules\Tenancy\Providers;
 
+use Modules\Tenancy\Commands\BackupTenantDatabaseCommand;
+use Modules\Tenancy\Commands\RestoreDrillCommand;
+use Modules\Tenancy\Commands\RestoreTenantDatabaseCommand;
 use Modules\Tenancy\Commands\SeedDemoTenantCommand;
 use Modules\Tenancy\Commands\TenantsMigrateCommand;
 use Modules\Tenancy\Services\TenantManagementService;
@@ -31,6 +34,9 @@ final class TenancyServiceProvider extends ModuleServiceProvider
             $this->commands([
                 TenantsMigrateCommand::class,
                 SeedDemoTenantCommand::class,
+                BackupTenantDatabaseCommand::class,
+                RestoreTenantDatabaseCommand::class,
+                RestoreDrillCommand::class,
             ]);
         }
     }

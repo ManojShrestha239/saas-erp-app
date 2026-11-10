@@ -7,6 +7,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
+use Shared\Http\Controllers\HealthController;
 use Shared\Http\Controllers\StreamController;
 
 /*
@@ -17,6 +18,8 @@ use Shared\Http\Controllers\StreamController;
 | Version 1 API routes. Domain routes are mounted by ModuleServiceProviders.
 |
 */
+
+Route::get('v1/health', [HealthController::class, 'check'])->name('api.v1.health');
 
 Route::middleware([
     'identify.tenant',
