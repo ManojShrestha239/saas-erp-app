@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Modules\Tenancy\Providers;
 
+use Modules\Tenancy\Commands\SeedDemoTenantCommand;
 use Modules\Tenancy\Commands\TenantsMigrateCommand;
 use Modules\Tenancy\Services\TenantManagementService;
 use Shared\Providers\ModuleServiceProvider;
@@ -29,6 +30,7 @@ final class TenancyServiceProvider extends ModuleServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 TenantsMigrateCommand::class,
+                SeedDemoTenantCommand::class,
             ]);
         }
     }

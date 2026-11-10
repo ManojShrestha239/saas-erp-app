@@ -7,6 +7,7 @@ namespace Modules\Auth\Models;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\Access\Authorizable;
@@ -31,6 +32,7 @@ final class TenantUser extends Model implements AuthenticatableContract, Authori
     use Authenticatable;
     use Authorizable;
     use HasRoles;
+    use HasUlids;
     use LogsAuditableActivity;
     use UsesTenantConnection;
 

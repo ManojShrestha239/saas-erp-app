@@ -21,6 +21,7 @@
 /storage/*.key
 /storage/pail
 /vendor
+/.scribe/endpoints.cache/
 _ide_helper.php
 Homestead.json
 Homestead.yaml
