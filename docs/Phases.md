@@ -81,4 +81,4 @@
 - [x] Scribe API docs published; seed/demo tenant.
 - [x] Backups and restore drill; production Docker/Supervisor config; Telescope/Debugbar off in prod.
 - [x] Full Playwright suite for all PRD §5 flows.
-- **Exit criteria:** all CI gates green; restore drill succeeded; launch checklist signed off by the user.
+- **Exit criteria:** all CI gates green [x]; restore drill succeeded [x]; launch checklist signed off by the user [x]. (Phase 7 Complete — v1.0.0-GA Released!)

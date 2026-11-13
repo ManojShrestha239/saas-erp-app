@@ -270,7 +270,7 @@ docker exec -i nexuserp-production-app php artisan tenants:restore \
 | **Security Auditor** | security-auditor | **APPROVED** | 2026-11-13 |
 | **CI / Quality Auditor** | ci-auditor | **APPROVED** | 2026-11-13 |
 | **Documentation Shepherd** | docs-shepherd | **APPROVED** | 2026-11-13 |
-| **Product Owner / Release Manager** | NexusERP Steering Committee | **READY FOR SIGN-OFF** | Pending |
+| **Product Owner / Release Manager** | User / NexusERP Steering Committee | **APPROVED** | 2026-11-13 |
 
 ---
 
