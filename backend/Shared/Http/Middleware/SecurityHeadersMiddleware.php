@@ -37,9 +37,21 @@ final class SecurityHeadersMiddleware
 
         // Content Security Policy
         if (! $headers->has('Content-Security-Policy')) {
+            $scriptSources = "'self' 'unsafe-inline' 'unsafe-eval'";
+            $connectSources = "'self'";
+            $styleSources = "'self' 'unsafe-inline'";
+            $fontSources = "'self' data:";
+
+            if (app()->environment('local', 'testing')) {
+                $scriptSources .= ' http://localhost:5173';
+                $connectSources .= ' http://localhost:5173 ws://localhost:5173';
+                $styleSources .= ' https://fonts.googleapis.com';
+                $fontSources .= ' https://fonts.gstatic.com';
+            }
+
             $headers->set(
                 'Content-Security-Policy',
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+                "default-src 'self'; script-src {$scriptSources}; style-src {$styleSources}; img-src 'self' data: blob:; font-src {$fontSources}; connect-src {$connectSources}; frame-ancestors 'none';"
             );
         }
 

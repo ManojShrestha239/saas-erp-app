@@ -6,3 +6,6 @@
 .agents
 skills-lock*
 .superpowers/
+playwright-report/
+test-results/
+

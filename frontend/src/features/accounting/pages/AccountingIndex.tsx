@@ -71,7 +71,13 @@ export default function AccountingIndex() {
     setLoadingEntries(true);
     try {
       const res = await accountingApi.getJournalEntries({ per_page: 100 });
-      setEntries(res.data);
+      const rawData = res.data as unknown;
+      const items: JournalEntryItem[] = Array.isArray(rawData)
+        ? (rawData as JournalEntryItem[])
+        : Array.isArray((rawData as { data?: JournalEntryItem[] })?.data)
+        ? ((rawData as { data: JournalEntryItem[] }).data)
+        : [];
+      setEntries(items);
     } catch (err) {
       setFeedback({
         type: 'error',

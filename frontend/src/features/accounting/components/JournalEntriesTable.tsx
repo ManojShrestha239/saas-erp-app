@@ -209,7 +209,8 @@ export function JournalEntriesTable({
   };
 
   const filteredEntries = useMemo(() => {
-    return entries.filter((e) => {
+    const list = Array.isArray(entries) ? entries : [];
+    return list.filter((e) => {
       if (statusFilter !== 'all' && e.status !== statusFilter) {
         return false;
       }

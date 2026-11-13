@@ -11,6 +11,7 @@ services:
       REDIS_HOST: redis
     volumes:
       - ./backend:/var/www/html
+      - ./docker/php/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf:ro
     networks:
       - nexuserp-network
     depends_on:

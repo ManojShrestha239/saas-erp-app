@@ -19,13 +19,19 @@ final class FinancialReportController extends Controller
 
     public function trialBalance(Request $request): JsonResponse
     {
+        if ($request->has('include_zero_balances')) {
+            $request->merge([
+                'include_zero_balances' => filter_var($request->input('include_zero_balances'), FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $request->input('include_zero_balances'),
+            ]);
+        }
+
         $validated = $request->validate([
             'as_of_date' => ['nullable', 'date'],
             'include_zero_balances' => ['nullable', 'boolean'],
         ]);
 
         $asOfDate = isset($validated['as_of_date']) ? (string) $validated['as_of_date'] : null;
-        $includeZeros = isset($validated['include_zero_balances']) ? (bool) $validated['include_zero_balances'] : false;
+        $includeZeros = $request->boolean('include_zero_balances');
 
         $report = $this->financialReportService->getTrialBalance($asOfDate, $includeZeros);
 

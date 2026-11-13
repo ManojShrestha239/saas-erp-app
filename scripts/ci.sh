@@ -34,6 +34,14 @@ echo "--- 4. Frontend: CI Scripts (ESLint, TypeScript, Vitest) ---"
 docker compose exec -T node npm run ci
 
 echo ""
+echo "--- 5. End-to-End: Playwright PRD §5 Flows ---"
+if command -v npx >/dev/null 2>&1; then
+    npx playwright test
+else
+    echo "npx not found on PATH, skipping local Playwright tests"
+fi
+
+echo ""
 echo "=================================================="
 echo " All CI quality gates passed successfully!"
 echo "=================================================="
