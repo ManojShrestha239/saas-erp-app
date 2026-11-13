@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
+use Modules\Auth\Http\Controllers\TenantSettingsController;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 
 Route::middleware([
@@ -34,5 +35,8 @@ Route::middleware([
 
         Route::get('users', fn (): Response => Inertia::render('users/UsersIndex'))
             ->name('users.view');
+
+        Route::get('settings', [TenantSettingsController::class, 'index'])
+            ->name('settings.view');
     });
 });

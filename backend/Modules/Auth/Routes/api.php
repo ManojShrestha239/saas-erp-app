@@ -11,6 +11,7 @@ use Modules\Auth\Http\Controllers\EmailVerificationController;
 use Modules\Auth\Http\Controllers\FcmTokenController;
 use Modules\Auth\Http\Controllers\GoogleAuthController;
 use Modules\Auth\Http\Controllers\PasswordResetController;
+use Modules\Auth\Http\Controllers\TenantSettingsController;
 use Modules\Auth\Http\Controllers\TenantUserController;
 use Modules\Auth\Http\Middleware\EnsureTenantSession;
 
@@ -56,6 +57,18 @@ Route::middleware([
         ->name('users.invite');
     Route::patch('{id}/role', [TenantUserController::class, 'updateRole'])->name('users.update-role');
     Route::patch('{id}/status', [TenantUserController::class, 'updateStatus'])->name('users.update-status');
+});
+
+Route::middleware([
+    'identify.tenant',
+    EncryptCookies::class,
+    AddQueuedCookiesToResponse::class,
+    StartSession::class,
+    EnsureTenantSession::class,
+    'auth:web',
+])->prefix('settings')->group(function (): void {
+    Route::get('', [TenantSettingsController::class, 'show'])->name('settings.show');
+    Route::put('', [TenantSettingsController::class, 'update'])->name('settings.update');
 });
 
 Route::middleware([

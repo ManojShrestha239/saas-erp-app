@@ -14,7 +14,7 @@
 - **Active Phase:** Phase 7: Hardening, Docs & Release — All 7 Project Phases 100% Complete & Signed Off!
 - **Last Completed Task:** `release/v1.0.0-GA`: Launch checklist signed off by Product Owner / Steering Committee; v1.0.0-GA release finalized with clean CI quality gates, automated disaster recovery verification, least-privilege security hardening, and full PRD §5 Playwright coverage.
 - **Current Focus:** Production Deployment & Operations (following `docs/Deployment.md` and `docs/LaunchChecklist.md`).
-- **Working branch:** `release/v1.0.0-launch-checklist` (Tagged: `v1.0.0-GA`)
+- **Working branch:** `fix/tenant-settings-page-and-routes`
 
 ## Architectural Decisions (Decision Log)
 
@@ -76,6 +76,7 @@
 | 54  | Scribe API Documentation & Rich Demo Tenant Architecture (`feat/scribe-api-docs-demo-tenant`): Installed and configured `knuckleswtf/scribe` generating static HTML, Postman collection, and OpenAPI specification in `public/docs/` (`type => 'static'`, base URL `http://demo.nexuserp.test`), disabling live response calls to prevent tenant context cold-start issues. Built `DemoTenantSeeder` and artisan command `tenants:seed-demo {--fresh}` provisioning `demo.nexuserp.test` (`tenant_demo`), 5 users with roles (`owner@`, `admin@`, `accountant@`, `warehouse@`, `sales@`), opening inventory movements + opening GL journal entry, 4 contacts, full purchasing cycle (PO -> GRN -> posted Bill), full sales cycle (Quotation -> current & overdue posted Invoices), and payments with multi-document allocations. Verified 100% General Ledger balance ($total\_debits === total\_credits === \$139,922.70$). Added automated Pest feature test in `DemoTenantSeederTest`. | Provides clean, interactive API documentation and an immediate, fully functional multi-persona demo environment with zero manual database seeding. |
 | 55  | Multi-Tenant Disaster Recovery, Process Supervision & Production Container Architecture (`feat/backups-restore-production-docker`): Multi-tenant backup engine in `Modules\Tenancy\Services\BackupService` using `pg_dump` and `gunzip | psql` pipelines with `PGPASSWORD` isolation and strict alphanumeric database name assertion. Automated disaster recovery restore drill (`tenants:restore-drill`) dumps live tenant, provisions ephemeral drill database (`tenant_drill_*`), restores tables, verifies schema integrity, and cleanly destroys drill DB in under 300 ms. Production multi-stage `Dockerfile` (Node 22 asset compilation, Composer `--no-dev --optimize-autoloader`, PHP 8.4-FPM with OPcache timestamps disabled). Process supervision via `supervisord` managing PHP-FPM, Horizon queue workers (`default`, `reports`, `notifications`), and 60-second scheduler runner. Production Nginx proxy with TLS 1.3, security headers, and 1-year immutable caching on `/build/`. Diagnostic health probe `GET /api/v1/health` verifying central DB, Redis, storage, OPcache, and production debug/telescope gating. | Guarantees verifiable RTO/RPO disaster recovery compliance without third-party vendor lock-in; provides reproducible containerized production deployments with background worker reliability and production performance optimizations. |
 | 56  | Full Playwright E2E Test Suite for PRD §5 Core Commercial Flows (`feat/playwright-prd-flows`): End-to-end tests in `e2e/*.spec.ts` covering the five core user journeys of PRD §5: (1) Tenant signup, database provisioning, and owner login; (2) Warehouse manager adds product, receives stock via PO, and inspects on-hand stock; (3) Sales rep creates invoice, posts to GL with atomic stock decrement, and downloads vector PDF; (4) Customer pays, receipt is allocated against invoice, invoice marked paid, AR aging verified; (5) Accountant runs statutory VAT return with GL reconciliation, verifies double-entry Trial Balance equilibrium ($net\_diff = 0.00$), and inspects P&L statement. Configured `playwright.config.ts` targeting `http://*.localhost:8000` with sequential execution (`workers: 1`), test helpers in `e2e/helpers/auth.ts`, SSE stream mock interceptor (`/api/v1/stream`), increased PHP-FPM worker concurrency (`pm.max_children = 25`), CSP local Vite whitelist, and sanitized boolean query parameter filtering in `FinancialReportController`. Integrated Playwright execution into `scripts/ci.sh`. | Provides automated regression protection across all core user journeys; guarantees frontend and backend integration reliability under real browser and multi-tenant conditions. |
+| 57  | Tenant Settings Hub & Operational Policy Configuration (`fix/tenant-settings-page-and-routes`): Built dedicated Settings model (`Modules\Auth\Models\Setting` with `UsesTenantConnection`), `TenantSettingsService` providing typed dictionary caching/mapping, form request `UpdateTenantSettingsRequest` validating ISO currency, MM-DD fiscal year start, and date formats, and `TenantSettingsController` handling both Inertia (`/settings`) and JSON API (`/api/v1/settings`). Web and API routes are secured by `TenantPermission::SettingsManage`. Organized across 4 domain tabs: Company Profile (legal name, tax ID, email, phone, address, bank details), Financial & Localization (base currency, timezone, date format, fiscal year start), Inventory Policies (negative stock balance permission, default low-stock reorder threshold), and Document Sequences (invoice, bill, quotation, PO prefixes). Reusable frontend interface in `frontend/src/features/settings/` with full Vitest component coverage and automated Pest feature tests verifying multi-tenant isolation. | Resolves 404 on `/settings` navigation link; provides tenant owners centralized operational controls; enforces strict multi-tenant database isolation without cross-tenant leakage. |
 
 ## Conventions Locked In
 
@@ -101,11 +102,20 @@
 
 ## Key Files Touched (latest)
 
-- `docs/LaunchChecklist.md`
-- `docs/Phases.md`
+- `backend/Modules/Auth/Models/Setting.php`
+- `backend/Modules/Auth/Services/TenantSettingsService.php`
+- `backend/Modules/Auth/Http/Requests/UpdateTenantSettingsRequest.php`
+- `backend/Modules/Auth/Http/Controllers/TenantSettingsController.php`
+- `backend/Modules/Auth/Routes/web.php`
+- `backend/Modules/Auth/Routes/api.php`
+- `frontend/src/features/settings/pages/SettingsIndex.tsx`
+- `frontend/src/features/settings/pages/__tests__/SettingsIndex.test.tsx`
+- `backend/tests/Feature/Auth/TenantSettingsTest.php`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-13`: `fix/tenant-settings-page-and-routes`: Resolved 404 on `/settings` navigation link by implementing full multi-tenant settings stack. Created `Setting` model with `UsesTenantConnection`, `TenantSettingsService` providing type-cast setting dictionaries, `UpdateTenantSettingsRequest` enforcing ISO currency, MM-DD fiscal date format, and sequence prefix validation, and `TenantSettingsController` handling both Inertia page rendering (`/settings`) and JSON API endpoints (`GET /api/v1/settings`, `PUT /api/v1/settings`) guarded by `TenantPermission::SettingsManage`. Built high-density frontend hub in `frontend/src/features/settings/` organized into 4 domain tabs (Company Profile, Financial & Localization, Inventory Policies, Document Sequences). Verified 100% CI compliance: Pint (579 files clean), Larastan Level 8 (0 errors across 484 files), Pest (66 Auth tests + 14 Arch tests clean), Vitest (105 tests passed across 23 files), TypeScript typecheck, ESLint, and Vite production build. Decision #57 recorded.
 
 - `2026-11-13`: `release/v1.0.0-GA`: Product Owner formally signed off the production launch checklist (`docs/LaunchChecklist.md`). All Phase 7 exit criteria satisfied (100% green across all 5 CI quality gates, automated disaster recovery restore drill RTO 326 ms, least-privilege PostgreSQL provisioner role verified, Scribe API documentation live, and all 5 PRD §5 core commercial flows automated and passing in Playwright). All 7 Roadmap Phases are officially complete. Tagged `v1.0.0-GA`.
 
