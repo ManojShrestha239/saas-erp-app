@@ -25,19 +25,34 @@ if (! function_exists('dropProvisionerTestDatabase')) {
 
         try {
             $config = config('database.connections.central');
-            /** @var array{host: string, port: int|string, username: string, password: string} $config */
-            $pdo = new PDO(
-                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-                username: (string) $config['username'],
-                password: (string) $config['password'],
-            );
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+            $driver = $config['driver'] ?? 'mysql';
 
-            $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
-                $pdo->quote($dbName).' AND pid <> pg_backend_pid()');
+            if ($driver === 'pgsql') {
+                $pdo = new PDO(
+                    dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+                    username: (string) $config['username'],
+                    password: (string) $config['password'],
+                );
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            $quotedName = '"'.str_replace('"', '""', $dbName).'"';
-            $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+                $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
+                    $pdo->quote($dbName).' AND pid <> pg_backend_pid()');
+
+                $quotedName = '"'.str_replace('"', '""', $dbName).'"';
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            } else {
+                $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+                $pdo = new PDO(
+                    dsn: $dsn,
+                    username: (string) $config['username'],
+                    password: (string) $config['password'],
+                );
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                $quotedName = '`'.str_replace('`', '``', $dbName).'`';
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            }
         } catch (Throwable) {
             // Best-effort cleanup
         }
@@ -73,44 +88,66 @@ afterEach(function (): void {
 
 test('nexuserp_provisioner role exists with CREATEDB privilege and without superuser status', function (): void {
     $config = config('database.connections.central');
-    /** @var array{host: string, port: int|string, username: string, password: string} $config */
-    $pdo = new PDO(
-        dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-        username: (string) $config['username'],
-        password: (string) $config['password'],
-    );
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+    $driver = $config['driver'] ?? 'mysql';
 
-    $stmt = $pdo->query(
-        "SELECT rolname, rolsuper, rolcreaterole, rolcreatedb, rolcanlogin 
-         FROM pg_roles 
-         WHERE rolname = 'nexuserp_provisioner'"
-    );
+    if ($driver === 'pgsql') {
+        $pdo = new PDO(
+            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+            username: (string) $config['username'],
+            password: (string) $config['password'],
+        );
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    $role = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+        $stmt = $pdo->query(
+            "SELECT rolname, rolsuper, rolcreaterole, rolcreatedb, rolcanlogin 
+             FROM pg_roles 
+             WHERE rolname = 'nexuserp_provisioner'"
+        );
 
-    expect($role)->not->toBeNull()
-        ->and($role['rolname'])->toBe('nexuserp_provisioner')
-        ->and($role['rolsuper'])->toBeFalse()
-        ->and($role['rolcreaterole'])->toBeFalse()
-        ->and($role['rolcreatedb'])->toBeTrue()
-        ->and($role['rolcanlogin'])->toBeTrue();
+        $role = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+
+        expect($role)->not->toBeNull()
+            ->and($role['rolname'])->toBe('nexuserp_provisioner')
+            ->and($role['rolsuper'])->toBeFalse()
+            ->and($role['rolcreaterole'])->toBeFalse()
+            ->and($role['rolcreatedb'])->toBeTrue()
+            ->and($role['rolcanlogin'])->toBeTrue();
+    } else {
+        $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+        $pdo = new PDO(
+            dsn: $dsn,
+            username: (string) $config['username'],
+            password: (string) $config['password'],
+        );
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $stmt = $pdo->query("SELECT User, Super_priv, Create_priv FROM mysql.user WHERE User = 'nexuserp_provisioner'");
+        $user = $stmt !== false ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+
+        expect($user)->not->toBeNull()
+            ->and($user['User'])->toBe('nexuserp_provisioner')
+            ->and($user['Super_priv'])->toBe('N')
+            ->and($user['Create_priv'])->toBe('Y');
+    }
 });
 
 test('ProvisionTenantDatabase successfully creates database and migrates tenant schema using non-superuser provisioner role', function (): void {
     $centralConfig = config('database.connections.central');
-    /** @var array{host: string, port: int|string} $centralConfig */
+    /** @var array{driver?: string, host: string, port: int|string} $centralConfig */
+    $driver = $centralConfig['driver'] ?? 'mysql';
 
     // Configure dedicated non-superuser provisioner connection
     config([
         'database.connections.provisioner' => [
-            'driver' => 'pgsql',
+            'driver' => $driver,
             'host' => $centralConfig['host'],
             'port' => $centralConfig['port'],
-            'database' => 'postgres',
+            'database' => $driver === 'pgsql' ? 'postgres' : null,
             'username' => 'nexuserp_provisioner',
             'password' => 'provisioner_secret',
-            'charset' => 'utf8',
+            'charset' => $driver === 'pgsql' ? 'utf8' : 'utf8mb4',
+            'collation' => $driver === 'pgsql' ? null : 'utf8mb4_unicode_ci',
             'prefix' => '',
             'search_path' => 'public',
         ],
@@ -142,45 +179,87 @@ test('ProvisionTenantDatabase successfully creates database and migrates tenant 
         ->and($tenant->provisioning_error)->toBeNull();
 
     // Verify database was physically created
-    $adminPdo = new PDO(
-        dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $centralConfig['host'], $centralConfig['port']),
-        username: (string) config('database.connections.central.username'),
-        password: (string) config('database.connections.central.password'),
-    );
-    $checkStmt = $adminPdo->query("SELECT COUNT(*) FROM pg_database WHERE datname = 'tenant_least_privilege_test'");
-    expect((int) $checkStmt->fetchColumn())->toBe(1);
+    if ($driver === 'pgsql') {
+        $adminPdo = new PDO(
+            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $centralConfig['host'], $centralConfig['port']),
+            username: (string) config('database.connections.central.username'),
+            password: (string) config('database.connections.central.password'),
+        );
+        $checkStmt = $adminPdo->query("SELECT COUNT(*) FROM pg_database WHERE datname = 'tenant_least_privilege_test'");
+        expect((int) $checkStmt->fetchColumn())->toBe(1);
 
-    // Verify tenant connection works and tables are migrated
-    /** @var TenantManager $tenantManager */
-    $tenantManager = app(TenantManager::class);
-    $tenantManager->switchTo(new TenantContext(
-        id: $tenant->id,
-        slug: $tenant->slug,
-        databaseName: $tenant->database_name,
-    ));
+        /** @var TenantManager $tenantManager */
+        $tenantManager = app(TenantManager::class);
+        $tenantManager->switchTo(new TenantContext(
+            id: $tenant->id,
+            slug: $tenant->slug,
+            databaseName: $tenant->database_name,
+        ));
 
-    $tableCount = $tenantManager->connection()
-        ->select("SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'");
-    expect((int) $tableCount[0]->count)->toBeGreaterThan(10);
+        $tableCount = $tenantManager->connection()
+            ->select("SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'");
+        expect((int) $tableCount[0]->count)->toBeGreaterThan(10);
+    } else {
+        $adminPdo = new PDO(
+            dsn: sprintf('mysql:host=%s;port=%s', $centralConfig['host'], $centralConfig['port']),
+            username: (string) config('database.connections.central.username'),
+            password: (string) config('database.connections.central.password'),
+        );
+        $checkStmt = $adminPdo->query("SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'tenant_least_privilege_test'");
+        expect((int) $checkStmt->fetchColumn())->toBe(1);
+
+        /** @var TenantManager $tenantManager */
+        $tenantManager = app(TenantManager::class);
+        $tenantManager->switchTo(new TenantContext(
+            id: $tenant->id,
+            slug: $tenant->slug,
+            databaseName: $tenant->database_name,
+        ));
+
+        $tableCount = $tenantManager->connection()
+            ->select("SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'tenant_least_privilege_test'");
+        expect((int) $tableCount[0]->count)->toBeGreaterThan(10);
+    }
 });
 
 test('non-superuser provisioner role is strictly blocked from executing superuser administrative operations', function (): void {
     $centralConfig = config('database.connections.central');
-    /** @var array{host: string, port: int|string} $centralConfig */
-    $provisionerPdo = new PDO(
-        dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $centralConfig['host'], $centralConfig['port']),
-        username: 'nexuserp_provisioner',
-        password: 'provisioner_secret',
-    );
-    $provisionerPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    /** @var array{driver?: string, host: string, port: int|string} $centralConfig */
+    $driver = $centralConfig['driver'] ?? 'mysql';
 
-    // Attempting ALTER SYSTEM must fail with SQLSTATE 42501 (must be superuser)
-    expect(function () use ($provisionerPdo): void {
-        $provisionerPdo->exec("ALTER SYSTEM SET log_connections = 'on'");
-    })->toThrow(PDOException::class);
+    if ($driver === 'pgsql') {
+        $provisionerPdo = new PDO(
+            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $centralConfig['host'], $centralConfig['port']),
+            username: 'nexuserp_provisioner',
+            password: 'provisioner_secret',
+        );
+        $provisionerPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Attempting to create a superuser or create another role must fail with insufficient privilege
-    expect(function () use ($provisionerPdo): void {
-        $provisionerPdo->exec('CREATE ROLE rogue_role WITH SUPERUSER LOGIN');
-    })->toThrow(PDOException::class);
+        // Attempting ALTER SYSTEM must fail with SQLSTATE 42501 (must be superuser)
+        expect(function () use ($provisionerPdo): void {
+            $provisionerPdo->exec("ALTER SYSTEM SET log_connections = 'on'");
+        })->toThrow(PDOException::class);
+
+        // Attempting to create a superuser or create another role must fail with insufficient privilege
+        expect(function () use ($provisionerPdo): void {
+            $provisionerPdo->exec('CREATE ROLE rogue_role WITH SUPERUSER LOGIN');
+        })->toThrow(PDOException::class);
+    } else {
+        $provisionerPdo = new PDO(
+            dsn: sprintf('mysql:host=%s;port=%s', $centralConfig['host'], $centralConfig['port']),
+            username: 'nexuserp_provisioner',
+            password: 'provisioner_secret',
+        );
+        $provisionerPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        // Attempting SET GLOBAL must fail with Access denied
+        expect(function () use ($provisionerPdo): void {
+            $provisionerPdo->exec('SET GLOBAL max_connections = 1000');
+        })->toThrow(PDOException::class);
+
+        // Attempting to grant SUPER or create users without privilege must fail
+        expect(function () use ($provisionerPdo): void {
+            $provisionerPdo->exec("CREATE USER 'rogue_user'@'%' IDENTIFIED BY 'secret'");
+        })->toThrow(PDOException::class);
+    }
 });

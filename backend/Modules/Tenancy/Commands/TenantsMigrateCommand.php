@@ -146,20 +146,37 @@ final class TenantsMigrateCommand extends Command
     private function tenantDatabaseExists(string $databaseName): bool
     {
         $config = config('database.connections.central');
-        /** @var array{host: string, port: int|string, username: string, password: string} $config */
+        /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+        $driver = $config['driver'] ?? 'mysql';
+
+        if ($driver === 'pgsql') {
+            $pdo = new \PDO(
+                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->query(
+                'SELECT COUNT(*) FROM pg_database WHERE datname = '.
+                $pdo->quote($databaseName)
+            );
+
+            return $stmt !== false && ((int) $stmt->fetchColumn()) > 0;
+        }
+
+        $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
         $pdo = new \PDO(
-            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+            dsn: $dsn,
             username: (string) $config['username'],
             password: (string) $config['password'],
         );
         $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $pdo->query(
-            'SELECT COUNT(*) FROM pg_database WHERE datname = '.
-            $pdo->quote($databaseName)
-        );
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = :dbname');
+        $stmt->execute(['dbname' => $databaseName]);
 
-        return $stmt !== false && ((int) $stmt->fetchColumn()) > 0;
+        return ((int) $stmt->fetchColumn()) > 0;
     }
 
     /**

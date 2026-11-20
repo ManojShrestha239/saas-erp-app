@@ -61,7 +61,7 @@ final class BackupTenantDatabaseCommand extends Command
         }
 
         if ($isCentral) {
-            $centralDb = (string) config('database.connections.central.database', 'pgsql_central');
+            $centralDb = (string) config('database.connections.central.database', 'mysql_central');
             $this->line("Backing up central database [{$centralDb}]...");
             $res = $backupService->backupDatabase($centralDb, destinationPath: $path);
 

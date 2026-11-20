@@ -179,19 +179,34 @@ final class DemoTenantSeeder extends Seeder
     {
         try {
             $config = config('database.connections.central');
-            /** @var array{host: string, port: int|string, username: string, password: string} $config */
-            $pdo = new PDO(
-                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-                username: (string) $config['username'],
-                password: (string) $config['password'],
-            );
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+            $driver = $config['driver'] ?? 'mysql';
 
-            $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
-                $pdo->quote(self::DB_NAME).' AND pid <> pg_backend_pid()');
+            if ($driver === 'pgsql') {
+                $pdo = new PDO(
+                    dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+                    username: (string) $config['username'],
+                    password: (string) $config['password'],
+                );
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            $quotedName = '"'.str_replace('"', '""', self::DB_NAME).'"';
-            $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+                $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
+                    $pdo->quote(self::DB_NAME).' AND pid <> pg_backend_pid()');
+
+                $quotedName = '"'.str_replace('"', '""', self::DB_NAME).'"';
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            } else {
+                $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+                $pdo = new PDO(
+                    dsn: $dsn,
+                    username: (string) $config['username'],
+                    password: (string) $config['password'],
+                );
+                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+                $quotedName = '`'.str_replace('`', '``', self::DB_NAME).'`';
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            }
         } catch (Throwable) {
             // Best effort
         }
@@ -200,20 +215,41 @@ final class DemoTenantSeeder extends Seeder
     private function ensureTenantDatabaseExists(): void
     {
         $config = config('database.connections.central');
-        /** @var array{host: string, port: int|string, username: string, password: string} $config */
-        $pdo = new PDO(
-            dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-            username: (string) $config['username'],
-            password: (string) $config['password'],
-        );
-        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+        $driver = $config['driver'] ?? 'mysql';
 
-        $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote(self::DB_NAME));
-        $exists = $stmt !== false && ((int) $stmt->fetchColumn()) > 0;
+        if ($driver === 'pgsql') {
+            $pdo = new PDO(
+                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        if (! $exists) {
-            $quotedName = '"'.str_replace('"', '""', self::DB_NAME).'"';
-            $pdo->exec("CREATE DATABASE {$quotedName}");
+            $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote(self::DB_NAME));
+            $exists = $stmt !== false && ((int) $stmt->fetchColumn()) > 0;
+
+            if (! $exists) {
+                $quotedName = '"'.str_replace('"', '""', self::DB_NAME).'"';
+                $pdo->exec("CREATE DATABASE {$quotedName}");
+            }
+        } else {
+            $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+            $pdo = new PDO(
+                dsn: $dsn,
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = :dbname');
+            $stmt->execute(['dbname' => self::DB_NAME]);
+            $exists = ((int) $stmt->fetchColumn()) > 0;
+
+            if (! $exists) {
+                $quotedName = '`'.str_replace('`', '``', self::DB_NAME).'`';
+                $pdo->exec("CREATE DATABASE {$quotedName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            }
         }
     }
 

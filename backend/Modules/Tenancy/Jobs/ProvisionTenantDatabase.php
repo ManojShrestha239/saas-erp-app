@@ -117,49 +117,86 @@ final class ProvisionTenantDatabase implements ShouldQueue
             throw new \InvalidArgumentException("Invalid database name: {$databaseName}");
         }
 
-        // Connect to postgres system db using dedicated provisioner connection (or central fallback)
-        /** @var array{host: string, port: int|string, username: string, password: string, database?: string} $config */
+        // Connect using dedicated provisioner connection (or central fallback)
+        /** @var array{driver?: string, host: string, port: int|string, username: string, password: string, database?: string} $config */
         $config = config('database.connections.provisioner') ?: config('database.connections.central');
-        $systemDb = $config['database'] ?? 'postgres';
-        $pdo = new \PDO(
-            dsn: sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $systemDb),
-            username: (string) $config['username'],
-            password: (string) $config['password'],
-        );
-        $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $driver = $config['driver'] ?? 'mysql';
 
-        // Safe: database_name is validated against [a-z0-9_-] and safely quoted
-        $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
+        if ($driver === 'pgsql') {
+            $systemDb = $config['database'] ?? 'postgres';
+            $pdo = new \PDO(
+                dsn: sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $systemDb),
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $pdo->query(
-            'SELECT COUNT(*) FROM pg_database WHERE datname = '.
-            $pdo->quote($databaseName)
-        );
+            // Safe: database_name is validated against [a-z0-9_-] and safely quoted
+            $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
 
-        $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
+            $stmt = $pdo->query(
+                'SELECT COUNT(*) FROM pg_database WHERE datname = '.
+                $pdo->quote($databaseName)
+            );
 
-        if ($exists === 0) {
-            $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
-            $isSameUser = $tenantUser === '' || $tenantUser === (string) $config['username'];
+            $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
 
-            if (! $isSameUser) {
-                try {
-                    $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
-                    $pdo->exec("CREATE DATABASE {$quotedName} OWNER {$quotedUser}");
-                } catch (Throwable) {
-                    $pdo->exec("CREATE DATABASE {$quotedName}");
+            if ($exists === 0) {
+                $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
+                $isSameUser = $tenantUser === '' || $tenantUser === (string) $config['username'];
+
+                if (! $isSameUser) {
                     try {
                         $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
-                        $pdo->exec("GRANT ALL PRIVILEGES ON DATABASE {$quotedName} TO {$quotedUser}");
+                        $pdo->exec("CREATE DATABASE {$quotedName} OWNER {$quotedUser}");
+                    } catch (Throwable) {
+                        $pdo->exec("CREATE DATABASE {$quotedName}");
+                        try {
+                            $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
+                            $pdo->exec("GRANT ALL PRIVILEGES ON DATABASE {$quotedName} TO {$quotedUser}");
+                        } catch (Throwable) {
+                            // Best effort grant
+                        }
+                    }
+                } else {
+                    $pdo->exec("CREATE DATABASE {$quotedName}");
+                }
+
+                Log::info('ProvisionTenantDatabase: created database', ['database' => $databaseName]);
+            }
+        } else {
+            // MySQL driver
+            $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+            $pdo = new \PDO(
+                dsn: $dsn,
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = :dbname');
+            $stmt->execute(['dbname' => $databaseName]);
+            $exists = (int) $stmt->fetchColumn();
+
+            if ($exists === 0) {
+                $quotedName = '`'.str_replace('`', '``', $databaseName).'`';
+                $pdo->exec("CREATE DATABASE {$quotedName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+
+                $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
+                $isSameUser = $tenantUser === '' || $tenantUser === (string) $config['username'];
+
+                if (! $isSameUser) {
+                    try {
+                        $quotedUser = "'".str_replace("'", "''", $tenantUser)."'";
+                        $pdo->exec("GRANT ALL PRIVILEGES ON {$quotedName}.* TO {$quotedUser}@'%'");
+                        $pdo->exec('FLUSH PRIVILEGES');
                     } catch (Throwable) {
                         // Best effort grant
                     }
                 }
-            } else {
-                $pdo->exec("CREATE DATABASE {$quotedName}");
-            }
 
-            Log::info('ProvisionTenantDatabase: created database', ['database' => $databaseName]);
+                Log::info('ProvisionTenantDatabase: created database', ['database' => $databaseName]);
+            }
         }
     }
 
