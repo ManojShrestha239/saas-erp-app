@@ -21,7 +21,7 @@ return new class extends Migration
             $table->integer('processed_rows')->default(0);
             $table->integer('successful_rows')->default(0);
             $table->integer('failed_rows')->default(0);
-            $table->jsonb('errors')->nullable();
+            $table->json('errors')->nullable();
             $table->string('user_id', 26)->nullable();
             $table->timestamp('started_at')->nullable();
             $table->timestamp('completed_at')->nullable();

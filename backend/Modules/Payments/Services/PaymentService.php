@@ -279,9 +279,9 @@ final class PaymentService
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function ($q) use ($search): void {
-                $q->where('payment_number', 'ilike', "%{$search}%")
-                    ->orWhere('reference_number', 'ilike', "%{$search}%")
-                    ->orWhere('notes', 'ilike', "%{$search}%");
+                $q->where('payment_number', 'like', "%{$search}%")
+                    ->orWhere('reference_number', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%");
             });
         }
 

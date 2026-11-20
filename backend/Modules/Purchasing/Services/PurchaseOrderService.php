@@ -181,7 +181,7 @@ final class PurchaseOrderService
 
         if (! empty($filters['search'])) {
             $search = trim((string) $filters['search']);
-            $query->where('order_number', 'ilike', "%{$search}%");
+            $query->where('order_number', 'like', "%{$search}%");
         }
 
         $perPage = min(max((int) ($filters['per_page'] ?? 25), 1), 100);

@@ -158,11 +158,11 @@ final class ContactService
         if (! empty($filters['search'])) {
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('name', 'ilike', $term)
-                    ->orWhere('code', 'ilike', $term)
-                    ->orWhere('tax_id', 'ilike', $term)
-                    ->orWhere('email', 'ilike', $term)
-                    ->orWhere('phone', 'ilike', $term);
+                $q->where('name', 'like', $term)
+                    ->orWhere('code', 'like', $term)
+                    ->orWhere('tax_id', 'like', $term)
+                    ->orWhere('email', 'like', $term)
+                    ->orWhere('phone', 'like', $term);
             });
         }
 

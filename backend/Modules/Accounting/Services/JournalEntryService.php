@@ -583,8 +583,8 @@ final class JournalEntryService
         if (! empty($filters['search'])) {
             $term = '%'.trim($filters['search']).'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('entry_number', 'ilike', $term)
-                    ->orWhere('description', 'ilike', $term);
+                $q->where('entry_number', 'like', $term)
+                    ->orWhere('description', 'like', $term);
             });
         }
 

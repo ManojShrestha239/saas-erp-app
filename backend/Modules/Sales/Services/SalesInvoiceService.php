@@ -137,8 +137,8 @@ final class SalesInvoiceService
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function ($q) use ($search): void {
-                $q->where('invoice_number', 'ilike', "%{$search}%")
-                    ->orWhere('notes', 'ilike', "%{$search}%");
+                $q->where('invoice_number', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%");
             });
         }
 

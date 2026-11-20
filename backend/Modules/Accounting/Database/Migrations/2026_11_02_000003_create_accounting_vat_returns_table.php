@@ -22,7 +22,7 @@ return new class extends Migration
             $table->bigInteger('purchases_taxable_cents')->default(0);
             $table->bigInteger('input_vat_cents')->default(0);
             $table->bigInteger('net_vat_cents')->default(0);
-            $table->jsonb('rate_breakdown')->default('[]');
+            $table->json('rate_breakdown')->nullable();
             $table->boolean('is_reconciled')->default(true);
             $table->bigInteger('gl_output_vat_cents')->default(0);
             $table->bigInteger('gl_input_vat_cents')->default(0);

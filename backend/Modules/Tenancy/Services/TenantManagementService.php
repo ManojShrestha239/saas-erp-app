@@ -30,10 +30,10 @@ final class TenantManagementService
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
             $query->where(function ($q) use ($search): void {
-                $q->where('name', 'ilike', "%{$search}%")
-                    ->orWhere('slug', 'ilike', "%{$search}%")
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
                     ->orWhereHas('domains', function ($dq) use ($search): void {
-                        $dq->where('host', 'ilike', "%{$search}%");
+                        $dq->where('host', 'like', "%{$search}%");
                     });
             });
         }

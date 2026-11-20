@@ -19,8 +19,8 @@ return new class extends Migration
             $table->string('event');
             $table->string('auditable_type')->nullable();
             $table->string('auditable_id')->nullable();
-            $table->jsonb('old_values')->nullable();
-            $table->jsonb('new_values')->nullable();
+            $table->json('old_values')->nullable();
+            $table->json('new_values')->nullable();
             $table->string('ip_address')->nullable();
             $table->text('user_agent')->nullable();
             $table->timestamp('created_at')->useCurrent();

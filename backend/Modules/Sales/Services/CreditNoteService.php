@@ -334,7 +334,7 @@ final class CreditNoteService
 
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
-            $query->where('credit_note_number', 'ilike', "%{$search}%");
+            $query->where('credit_note_number', 'like', "%{$search}%");
         }
 
         return $query->paginate($perPage);

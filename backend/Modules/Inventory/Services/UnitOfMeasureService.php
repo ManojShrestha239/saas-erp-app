@@ -77,8 +77,8 @@ final class UnitOfMeasureService
         if (! empty($filters['search'])) {
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('name', 'ilike', $term)
-                    ->orWhere('symbol', 'ilike', $term);
+                $q->where('name', 'like', $term)
+                    ->orWhere('symbol', 'like', $term);
             });
         }
 

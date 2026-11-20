@@ -98,9 +98,9 @@ final class ProductService
         if (! empty($filters['search'])) {
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('name', 'ilike', $term)
-                    ->orWhere('sku', 'ilike', $term)
-                    ->orWhere('barcode', 'ilike', $term);
+                $q->where('name', 'like', $term)
+                    ->orWhere('sku', 'like', $term)
+                    ->orWhere('barcode', 'like', $term);
             });
         }
 

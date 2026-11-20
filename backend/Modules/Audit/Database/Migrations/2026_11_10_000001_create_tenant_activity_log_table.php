@@ -20,8 +20,8 @@ return new class extends Migration
                 $table->string('event')->nullable()->index();
                 $table->string('causer_type')->nullable();
                 $table->string('causer_id', 36)->nullable();
-                $table->jsonb('attribute_changes')->nullable();
-                $table->jsonb('properties')->nullable();
+                $table->json('attribute_changes')->nullable();
+                $table->json('properties')->nullable();
                 $table->uuid('batch_uuid')->nullable();
                 $table->string('ip_address', 45)->nullable();
                 $table->text('user_agent')->nullable();

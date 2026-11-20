@@ -325,7 +325,7 @@ final class DebitNoteService
 
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
-            $query->where('debit_note_number', 'ilike', "%{$search}%");
+            $query->where('debit_note_number', 'like', "%{$search}%");
         }
 
         return $query->paginate($perPage);

@@ -230,8 +230,8 @@ final class AccountService
         if (! empty($filters['search']) && is_string($filters['search'])) {
             $search = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($search): void {
-                $q->where('code', 'ILIKE', $search)
-                    ->orWhere('name', 'ILIKE', $search);
+                $q->where('code', 'like', $search)
+                    ->orWhere('name', 'like', $search);
             });
         }
 

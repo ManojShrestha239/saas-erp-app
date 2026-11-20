@@ -23,8 +23,8 @@ return new class extends Migration
             $table->bigInteger('opening_balance_cents')->default(0);
             $table->boolean('is_active')->default(true)->index();
             $table->text('notes')->nullable();
-            $table->jsonb('billing_address')->nullable();
-            $table->jsonb('shipping_address')->nullable();
+            $table->json('billing_address')->nullable();
+            $table->json('shipping_address')->nullable();
             $table->timestamps();
 
             $table->index(['type', 'is_active']);

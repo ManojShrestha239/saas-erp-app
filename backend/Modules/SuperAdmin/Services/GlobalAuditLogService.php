@@ -55,11 +55,11 @@ final class GlobalAuditLogService
         if (! empty($filters['search'])) {
             $term = '%'.trim((string) $filters['search']).'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('event', 'ilike', $term)
-                    ->orWhere('tenant_id', 'ilike', $term)
-                    ->orWhere('user_id', 'ilike', $term)
-                    ->orWhere('auditable_type', 'ilike', $term)
-                    ->orWhere('auditable_id', 'ilike', $term);
+                $q->where('event', 'like', $term)
+                    ->orWhere('tenant_id', 'like', $term)
+                    ->orWhere('user_id', 'like', $term)
+                    ->orWhere('auditable_type', 'like', $term)
+                    ->orWhere('auditable_id', 'like', $term);
             });
         }
 

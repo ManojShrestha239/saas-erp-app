@@ -491,7 +491,7 @@ final class VatReturnService
 
         if (! empty($filters['search'])) {
             $search = (string) $filters['search'];
-            $query->where('return_number', 'ilike', "%{$search}%");
+            $query->where('return_number', 'like', "%{$search}%");
         }
 
         $perPage = min(max((int) ($filters['per_page'] ?? $perPage), 1), 100);

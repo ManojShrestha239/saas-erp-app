@@ -227,8 +227,8 @@ final class SupplierBillService
         if (! empty($filters['search'])) {
             $search = trim((string) $filters['search']);
             $query->where(function ($q) use ($search): void {
-                $q->where('bill_number', 'ilike', "%{$search}%")
-                    ->orWhere('supplier_invoice_number', 'ilike', "%{$search}%");
+                $q->where('bill_number', 'like', "%{$search}%")
+                    ->orWhere('supplier_invoice_number', 'like', "%{$search}%");
             });
         }
 

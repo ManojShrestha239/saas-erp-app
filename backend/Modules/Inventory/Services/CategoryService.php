@@ -77,8 +77,8 @@ final class CategoryService
         if (! empty($filters['search'])) {
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('name', 'ilike', $term)
-                    ->orWhere('slug', 'ilike', $term);
+                $q->where('name', 'like', $term)
+                    ->orWhere('slug', 'like', $term);
             });
         }
 

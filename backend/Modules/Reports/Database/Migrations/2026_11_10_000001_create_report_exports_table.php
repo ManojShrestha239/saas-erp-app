@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('file_path')->nullable();
             $table->unsignedBigInteger('file_size_bytes')->nullable();
             $table->text('error_message')->nullable();
-            $table->jsonb('filters')->nullable();
+            $table->json('filters')->nullable();
             $table->timestamps();
 
             $table->index(['user_id', 'created_at']);

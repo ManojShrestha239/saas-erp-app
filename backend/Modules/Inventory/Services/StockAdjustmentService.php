@@ -177,8 +177,8 @@ final class StockAdjustmentService
         if (! empty($filters['search'])) {
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('adjustment_number', 'ilike', $term)
-                    ->orWhere('reason', 'ilike', $term);
+                $q->where('adjustment_number', 'like', $term)
+                    ->orWhere('reason', 'like', $term);
             });
         }
 

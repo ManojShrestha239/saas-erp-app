@@ -32,11 +32,11 @@ final class AuditLogService
         if (! empty($filters['search'])) {
             $term = '%'.trim((string) $filters['search']).'%';
             $query->where(function ($q) use ($term): void {
-                $q->where('description', 'ilike', $term)
-                    ->orWhere('event', 'ilike', $term)
-                    ->orWhere('subject_type', 'ilike', $term)
-                    ->orWhere('subject_id', 'ilike', $term)
-                    ->orWhere('causer_id', 'ilike', $term);
+                $q->where('description', 'like', $term)
+                    ->orWhere('event', 'like', $term)
+                    ->orWhere('subject_type', 'like', $term)
+                    ->orWhere('subject_id', 'like', $term)
+                    ->orWhere('causer_id', 'like', $term);
             });
         }
 
