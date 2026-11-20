@@ -13,7 +13,7 @@ services:
     networks:
       - nexuserp-prod-network
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -34,24 +34,28 @@ services:
     depends_on:
       - app
 
-  postgres:
-    image: postgres:17-alpine
-    container_name: nexuserp-production-postgres
+  mysql:
+    image: mysql:8.4
+    container_name: nexuserp-production-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_CENTRAL_DATABASE:-pgsql_central}
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_CENTRAL_DATABASE:-mysql_central}
+      MYSQL_USER: ${DB_USERNAME:-nexuserp}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
-      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+      - mysql_prod_data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d:ro
     networks:
       - nexuserp-prod-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\""]
       interval: 10s
       timeout: 5s
       retries: 5
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
 
   redis:
     image: redis:7-alpine
@@ -73,7 +77,7 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_prod_data:
+  mysql_prod_data:
   redis_prod_data:
   storage_data:
   storage_logs:

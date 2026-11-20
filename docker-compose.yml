@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     working_dir: /var/www/html
     environment:
-      DB_HOST: postgres
+      DB_HOST: mysql
       REDIS_HOST: redis
     volumes:
       - ./backend:/var/www/html
@@ -15,7 +15,7 @@ services:
     networks:
       - nexuserp-network
     depends_on:
-      - postgres
+      - mysql
       - redis
 
   nginx:
@@ -32,21 +32,25 @@ services:
     depends_on:
       - app
 
-  postgres:
-    image: postgres:17-alpine
-    container_name: nexuserp-postgres
+  mysql:
+    image: mysql:8.4
+    container_name: nexuserp-mysql
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_CENTRAL_DATABASE:-pgsql_central}
-      POSTGRES_USER: ${DB_USERNAME:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_CENTRAL_DATABASE:-mysql_central}
+      MYSQL_USER: ${DB_USERNAME:-nexuserp}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
     ports:
-      - "${FORWARD_DB_PORT:-5432}:5432"
+      - "${FORWARD_DB_PORT:-3306}:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres:/docker-entrypoint-initdb.d:ro
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql:/docker-entrypoint-initdb.d:ro
     networks:
       - nexuserp-network
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
 
   redis:
     image: redis:7-alpine
@@ -59,19 +63,19 @@ services:
     networks:
       - nexuserp-network
 
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: nexuserp-pgadmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: nexuserp-phpmyadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@example.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PMA_HOST: mysql
+      PMA_PORT: 3306
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - "${PMA_PORT:-5050}:80"
     networks:
       - nexuserp-network
     depends_on:
-      - postgres
+      - mysql
 
   node:
     image: node:22-alpine
@@ -91,5 +95,5 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:

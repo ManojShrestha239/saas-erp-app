@@ -35,7 +35,8 @@ RUN apk add --no-cache \
     bash \
     curl \
     supervisor \
-    postgresql-client \
+    mysql-client \
+    mariadb-connector-c \
     nodejs \
     npm \
     chromium \
@@ -56,6 +57,8 @@ RUN npm install -g puppeteer
 ADD --chmod=0755 https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions /usr/local/bin/
 
 RUN install-php-extensions \
+    pdo_mysql \
+    mysqli \
     pdo_pgsql \
     pgsql \
     redis \
