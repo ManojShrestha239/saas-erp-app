@@ -23,39 +23,7 @@ if (! function_exists('dropProvisionerTestDatabase')) {
             return;
         }
 
-        try {
-            $config = config('database.connections.central');
-            /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
-            $driver = $config['driver'] ?? 'mysql';
-
-            if ($driver === 'pgsql') {
-                $pdo = new PDO(
-                    dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-                    username: (string) $config['username'],
-                    password: (string) $config['password'],
-                );
-                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-                $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
-                    $pdo->quote($dbName).' AND pid <> pg_backend_pid()');
-
-                $quotedName = '"'.str_replace('"', '""', $dbName).'"';
-                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
-            } else {
-                $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
-                $pdo = new PDO(
-                    dsn: $dsn,
-                    username: (string) $config['username'],
-                    password: (string) $config['password'],
-                );
-                $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-                $quotedName = '`'.str_replace('`', '``', $dbName).'`';
-                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
-            }
-        } catch (Throwable) {
-            // Best-effort cleanup
-        }
+        TestCase::dropTestTenantDatabase($dbName);
     }
 }
 

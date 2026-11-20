@@ -9,28 +9,15 @@ use Modules\Tenancy\Models\Domain;
 use Modules\Tenancy\Models\Tenant;
 use Shared\Tenancy\TenantContext;
 use Shared\Tenancy\TenantManager;
+use Tests\TestCase;
 
 function createRawTestTenantDatabase(string $dbName): void
 {
     $config = config('database.connections.central');
-    /** @var array{host: string, port: int|string, username: string, password: string} $config */
-    $pdo = new PDO(
-        dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-        username: (string) $config['username'],
-        password: (string) $config['password'],
-    );
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+    $driver = $config['driver'] ?? 'mysql';
 
-    $quotedName = '"'.str_replace('"', '""', $dbName).'"';
-    $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
-    $pdo->exec("CREATE DATABASE {$quotedName}");
-}
-
-function cleanupMigrateTestTenantDatabases(): void
-{
-    try {
-        $config = config('database.connections.central');
-        /** @var array{host: string, port: int|string, username: string, password: string} $config */
+    if ($driver === 'pgsql') {
         $pdo = new PDO(
             dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
             username: (string) $config['username'],
@@ -38,16 +25,58 @@ function cleanupMigrateTestTenantDatabases(): void
         );
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-        $stmt = $pdo->query("SELECT datname FROM pg_database WHERE datname LIKE 'tenant_test_mig_%'");
-        /** @var list<string> $dbs */
-        $dbs = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        $quotedName = '"'.str_replace('"', '""', $dbName).'"';
+        $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+        $pdo->exec("CREATE DATABASE {$quotedName}");
+    } else {
+        $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+        $pdo = new PDO(
+            dsn: $dsn,
+            username: (string) $config['username'],
+            password: (string) $config['password'],
+        );
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $quotedName = '`'.str_replace('`', '``', $dbName).'`';
+        $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+        $pdo->exec("CREATE DATABASE {$quotedName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    }
+}
+
+function cleanupMigrateTestTenantDatabases(): void
+{
+    try {
+        $config = config('database.connections.central');
+        /** @var array{driver?: string, host: string, port: int|string, username: string, password: string} $config */
+        $driver = $config['driver'] ?? 'mysql';
+
+        if ($driver === 'pgsql') {
+            $pdo = new PDO(
+                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->query("SELECT datname FROM pg_database WHERE datname LIKE 'tenant_test_mig_%'");
+            /** @var list<string> $dbs */
+            $dbs = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        } else {
+            $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+            $pdo = new PDO(
+                dsn: $dsn,
+                username: (string) $config['username'],
+                password: (string) $config['password'],
+            );
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            $stmt = $pdo->query("SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 'tenant_test_mig_%'");
+            /** @var list<string> $dbs */
+            $dbs = $stmt !== false ? $stmt->fetchAll(PDO::FETCH_COLUMN) : [];
+        }
 
         foreach ($dbs as $dbName) {
-            $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.
-                $pdo->quote($dbName).' AND pid <> pg_backend_pid()');
-
-            $quotedName = '"'.str_replace('"', '""', $dbName).'"';
-            $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            TestCase::dropTestTenantDatabase((string) $dbName);
         }
     } catch (Throwable) {
         // Best-effort cleanup

@@ -29,7 +29,6 @@ use Modules\Sales\Services\SalesInvoiceService;
 use Modules\Tenancy\Jobs\ProvisionTenantDatabase;
 use Modules\Tenancy\Models\Domain;
 use Modules\Tenancy\Models\Tenant;
-use PDO;
 use Shared\Tenancy\TenantContext;
 use Shared\Tenancy\TenantManager;
 use Throwable;
@@ -58,20 +57,7 @@ if (! function_exists('dropInventoryCostingTestTenantDb')) {
             return;
         }
 
-        try {
-            $config = config('database.connections.central');
-            /** @var array{host: string, port: int|string, username: string, password: string} $config */
-            $pdo = new PDO(
-                dsn: sprintf('pgsql:host=%s;port=%s;dbname=postgres', $config['host'], $config['port']),
-                username: (string) $config['username'],
-                password: (string) $config['password'],
-            );
-            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-            $pdo->exec('SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '.$pdo->quote($dbName).' AND pid <> pg_backend_pid()');
-            $quotedName = '"'.str_replace('"', '""', $dbName).'"';
-            $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
-        } catch (Throwable) {
-        }
+        TestCase::dropTestTenantDatabase($dbName);
     }
 }
 

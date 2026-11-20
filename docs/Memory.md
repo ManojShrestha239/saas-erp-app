@@ -5,16 +5,16 @@
 ## Project Snapshot
 
 - **Product:** NexusERP, multi-tenant SaaS ERP for trading/retail/wholesale.
-- **Stack:** Laravel 13 (PHP 8.4, modular monolith) · Inertia + React 19 + TypeScript · Tailwind + shadcn/ui · PostgreSQL (database-per-tenant) · Redis + Horizon · Docker.
+- **Stack:** Laravel 13 (PHP 8.4, modular monolith) · Inertia + React 19 + TypeScript · Tailwind + shadcn/ui · MySQL 8.4 LTS (database-per-tenant, dual-engine capable) · Redis + Horizon · Docker.
 - **Source-of-truth docs:** `docs/PRD.md`, `docs/Architecture.md`, `docs/Rules.md`, `docs/Phases.md`, `docs/Design.md`.
 - **Tooling:** vibe coding with agy CLI.
 
 ## Current Status
 
-- **Active Phase:** Phase 7: Hardening, Docs & Release — MySQL Engine Transition
-- **Last Completed Task:** `feat/mysql-schema-and-migrations`: MySQL schema compatibility pass (`jsonb` to `json`), elimination of PostgreSQL `ILIKE` in all services, and centralized test DB teardown.
-- **Current Focus:** Database Migration to MySQL (Next: `feat/mysql-backup-restore-engine`).
-- **Working branch:** `feat/mysql-schema-and-migrations`
+- **Active Phase:** Phase 7: Hardening, Docs & Release — MySQL Conversion Completed
+- **Last Completed Task:** `feat/mysql-ci-and-test-suite`: CI workflow migration to MySQL 8.4 service container, test suite cleanup across 52 feature tests delegating to centralized dual-driver teardown.
+- **Current Focus:** Branch integration, release verification, and upstream synchronization.
+- **Working branch:** `feat/mysql-ci-and-test-suite`
 
 ## Architectural Decisions (Decision Log)
 
@@ -82,6 +82,7 @@
 | 60  | MySQL Dynamic Tenant Provisioning & Discovery Architecture (`feat/mysql-tenant-provisioning`): Refactored `ProvisionTenantDatabase`, `TenantsMigrateCommand`, `TenantAdminSeeder`, and `DemoTenantSeeder` to support MySQL database creation (`CREATE DATABASE \`tenant_{slug}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`) and existence verification via `information_schema.schemata` while retaining dual-driver capability. Enforced least-privilege `nexuserp_provisioner` user boundaries in MySQL (`CREATE`, `DROP`, `ALTER` on tenant databases, zero `SUPER` privilege). | Eliminates PostgreSQL hardcoding in dynamic tenant database management; guarantees clean database provisioning and isolation under MySQL 8.4 LTS without administrative privilege exposure. |
 | 61  | MySQL Schema Compatibility, Dialect Standardization & ILIKE Elimination (`feat/mysql-schema-and-migrations`): Converted all PostgreSQL-specific `jsonb` column declarations across all central and tenant migrations to database-agnostic `json` with `nullable()` bounds to avoid MySQL JSON default literal syntax errors. Replaced all raw PostgreSQL `ILIKE` operators across 21 domain services with standard `like` (which is inherently case-insensitive under MySQL `utf8mb4_unicode_ci`). Added centralized cross-engine `dropTestTenantDatabase` helper to `Tests\TestCase`. | Ensures 100% dialect and schema compatibility with MySQL 8.4 LTS while maintaining full backward compatibility and zero SQL syntax errors across search filters and migrations. |
 | 62  | MySQL Multi-Tenant Backup & Disaster Recovery Architecture (`feat/mysql-backup-restore-engine`): Refactored `BackupService` to dynamically detect database driver (`mysql` vs `pgsql`), executing `mysqldump` with `--single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4` and `MYSQL_PWD` isolation for backups, and `gunzip -c | mysql` for restores. Updated database creation, existence check (`information_schema.schemata`), drop routines, and restore drill table count inspection (`information_schema.tables WHERE table_schema = ...`) to support MySQL. | Guarantees non-locking, crash-consistent tenant backups and sub-second disaster recovery drills on MySQL 8.4 LTS without cross-tenant table interference or superuser privilege escalation. |
+| 63  | MySQL CI Quality Gates & Test Suite Modernization (`feat/mysql-ci-and-test-suite`): Switched `.github/workflows/ci.yml` service container to `mysql:8.4` with `mysqladmin ping` healthchecks, `pdo_mysql` and `mysqli` extensions, and automated MySQL testing DB + provisioner user initialization. Modernized all 52 feature test database drop routines to delegate to centralized dual-driver `TestCase::dropTestTenantDatabase`. | Fulfills 100% CI pipeline and automated test suite parity on MySQL 8.4 LTS with zero dialect collisions, clean test isolation, and zero code duplication. |
 
 ## Conventions Locked In
 
@@ -107,12 +108,15 @@
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Tenancy/Services/BackupService.php`
-- `backend/Modules/Tenancy/Commands/RestoreTenantDatabaseCommand.php`
-- `backend/tests/Feature/Tenancy/BackupRestoreTest.php`
+- `.github/workflows/ci.yml`
+- `backend/tests/Feature/Tenancy/TenantsMigrateCommandTest.php`
+- `backend/tests/Feature/Tenancy/TenantProvisioningTest.php`
+- `backend/tests/Feature/Accounting/AccountingWebRouteTest.php`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-20`: `feat/mysql-ci-and-test-suite`: Updated GitHub Actions workflow `.github/workflows/ci.yml` to run `mysql:8.4` container service with `mysqladmin ping` healthchecks, installed `pdo_mysql` and `mysqli` extensions, and automated MySQL testing DB and least-privilege `nexuserp_provisioner` user bootstrap. Modernized teardown across 52 feature test suites to delegate directly to `Tests\TestCase::dropTestTenantDatabase`. Verified 100% CI compliance: Pint (579 files clean), Larastan Level 8 (0 errors across 484 files), Pest (20 Arch and Connection tests passed, 55 assertions), Vitest (119/119 frontend tests passed), TypeScript, and ESLint. Decision #63 recorded.
 
 - `2026-11-20`: `feat/mysql-backup-restore-engine`: Updated `BackupService` to detect active database driver (`mysql` vs `pgsql`), executing `mysqldump` with `--single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4` and `MYSQL_PWD` isolation for non-locking compressed backups, and `gunzip -c | mysql` for restores. Updated database creation, existence check (`information_schema.schemata`), drop routines, and restore drill table count inspection (`information_schema.tables WHERE table_schema = ...`) to support MySQL. Verified 100% CI compliance: Pint (579 files clean), Larastan Level 8 (0 errors across 484 files), Pest (20 Arch and Connection tests passed, 55 assertions), Vitest (119/119 frontend tests passed), TypeScript, and ESLint. Decision #62 recorded.
 
@@ -131,7 +135,5 @@
 - `2026-11-13`: `docs/launch-checklist`: Consolidated full production readiness evidence and launch dossier in `docs/LaunchChecklist.md` based on audits by `dr-auditor` (automated live restore drill RTO 326 ms, 47 tables verified, `tenants:backup` SHA-256 integrity verified, 7/7 tests passed), `security-auditor` (`/api/v1/health` HTTP 200 telemetry, least-privilege PostgreSQL `nexuserp_provisioner` non-superuser role validation, OWASP Top 10 security headers, rate limiters, 8/8 tests passed), and `ci-auditor` (Pint 574 files, Larastan Level 8 480 files 0 errors, Pest 439/439 tests and 3,621 assertions in 185.79s, Vitest 100/100 tests in 22 files, Playwright 5/5 PRD §5 flows passed in 28.4s). All 5 CI quality gates passing with 0 errors. Phase 7 Complete & Ready for Release Sign-off!
 
 - `2026-11-13`: `feat/playwright-prd-flows`: Built and verified full Playwright end-to-end automated test suite covering all PRD §5 user journeys (`e2e/01-tenant-provisioning.spec.ts` through `05-vat-and-financial-reports.spec.ts`). Validated: (1) Tenant signup, database provisioning, and owner login; (2) Warehouse manager product creation, PO flow, and goods receipt with on-hand verification; (3) Sales rep invoice creation, GL ledger posting, atomic stock decrement, and vector PDF download; (4) Customer payment receipt recording, multi-invoice allocation, invoice marked paid, and AR aging verification; (5) Accountant VAT return calculation with GL reconciliation, double-entry Trial Balance equilibrium ($net\_diff = 0.00$), and P&L statement. Configured `playwright.config.ts`, sequential execution (`workers: 1`), `e2e/helpers/auth.ts`, SSE stream interceptor, increased PHP-FPM `pm.max_children = 25`, CSP local Vite whitelist, and sanitized boolean query parameter handling in `FinancialReportController`. Integrated Playwright execution into `scripts/ci.sh`. 100% CI gate passing across Pint (574 files clean), Larastan Level 8 (0 errors across 480 files), Pest (78 tests, 248 assertions clean), Frontend CI (100 tests passed across 22 test files, TypeScript and ESLint clean), and Playwright E2E suite (5 of 5 flows passed in 16.0s). Phase 7 Complete!
-
-- `2026-11-10`: `feat/backups-restore-production-docker`: Implemented comprehensive multi-tenant backup and disaster recovery tooling (`BackupService`, `tenants:backup`, `tenants:restore`, `tenants:restore-drill`), production multi-stage Dockerfile, Supervisor daemon configuration (PHP-FPM, Horizon queue worker, scheduler), production Nginx configuration with TLS/HTTP2, asset caching, `docker-compose.prod.yml`, production environment safeguards disabling Telescope/Debugbar, unauthenticated health diagnostics endpoint `GET /api/v1/health`, and comprehensive architecture operations guide in `docs/Deployment.md`. Authored automated Pest feature tests in `BackupRestoreTest.php` and `ProductionEnvironmentTest.php` (10 tests, 30 assertions). 100% CI gate passing across Pint (574 files clean), Larastan Level 8 (0 errors across 480 files), Pest (439 tests passed, 3,621 assertions, all 14 Arch tests clean), Vitest (100 tests passed across 22 files), ESLint, and TypeScript. Ticked Phase 7 fifth item.
 
 - `2024-10-24` to `2026-11-10`: Earlier Phase 1-6 items: Multi-tenancy setup, Docker, Spatie RBAC, central/tenant schemas, user auth, product catalog, stock engine, manual stock adjustments, contact directory, reusable DataTable, low-stock alerts with SSE stream, CSV import engine, seeders, document numbering engine, purchasing cycle, sales quotations & invoices, payment allocations, atomic invoice posting & inventory sync, central migration discovery, contact statements with aging buckets, Browsershot document PDFs, purchasing & inventory UIs, Chart of Accounts, General Ledger posting, moving weighted average costing (AVCO), credit/debit notes, fiscal periods, VAT returns, super admin dashboard, package limits/feature flags, immutable audit logs, and financial/inventory reports.

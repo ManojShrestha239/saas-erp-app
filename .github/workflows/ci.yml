@@ -12,19 +12,18 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
-      postgres:
-        image: postgres:17-alpine
+      mysql:
+        image: mysql:8.4
         env:
-          POSTGRES_DB: pgsql_central
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: mysql_central
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "mysqladmin ping -h 127.0.0.1 --silent"
           --health-interval 10s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
 
       redis:
         image: redis:7-alpine
@@ -48,11 +47,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_pgsql, pgsql, redis, bcmath
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, mysqli, redis, bcmath
           coverage: none
 
-      - name: Create testing database in PostgreSQL
-        run: PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres -c "CREATE DATABASE pgsql_testing;"
+      - name: Create testing database and provisioner user in MySQL
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE DATABASE IF NOT EXISTS mysql_testing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -P 3306 -u root -e "CREATE USER IF NOT EXISTS 'nexuserp_provisioner'@'%' IDENTIFIED BY 'nexuserp_provisioner_secret';"
+          mysql -h 127.0.0.1 -P 3306 -u root -e "GRANT CREATE, DROP, ALTER, REFERENCES, INDEX, SELECT, INSERT, UPDATE, DELETE ON *.* TO 'nexuserp_provisioner'@'%'; FLUSH PRIVILEGES;"
 
       - name: Copy .env
         run: cp .env.example .env
