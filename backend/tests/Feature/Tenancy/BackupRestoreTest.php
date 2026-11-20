@@ -120,8 +120,10 @@ test('tenants:restore command successfully restores database tables from a backu
             ['database' => $drillDatabaseName]
         )]);
 
+        $driver = config('database.connections.tenant.driver') ?? 'mysql';
+        $schema = $driver === 'pgsql' ? "'public'" : "'{$drillDatabaseName}'";
         $tables = DB::connection('test_restore')->select(
-            "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = 'public'"
+            "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = {$schema}"
         );
         $tableCount = isset($tables[0]->count) ? (int) $tables[0]->count : 0;
         expect($tableCount)->toBeGreaterThanOrEqual(40);

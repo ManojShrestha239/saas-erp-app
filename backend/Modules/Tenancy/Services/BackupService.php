@@ -55,19 +55,31 @@ final class BackupService
         $port = (string) $config['port'];
         $user = (string) $config['username'];
         $password = (string) $config['password'];
+        $driver = $config['driver'];
 
-        $command = sprintf(
-            'pg_dump -h %s -p %s -U %s --clean --if-exists --no-owner --no-privileges %s | gzip > %s',
-            escapeshellarg($host),
-            escapeshellarg($port),
-            escapeshellarg($user),
-            escapeshellarg($databaseName),
-            escapeshellarg($destinationPath)
-        );
+        if ($driver === 'pgsql') {
+            $command = sprintf(
+                'pg_dump -h %s -p %s -U %s --clean --if-exists --no-owner --no-privileges %s | gzip > %s',
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($user),
+                escapeshellarg($databaseName),
+                escapeshellarg($destinationPath)
+            );
+            $env = ['PGPASSWORD' => $password];
+        } else {
+            $command = sprintf(
+                'mysqldump -h %s -P %s -u %s --single-transaction --quick --skip-lock-tables --default-character-set=utf8mb4 %s | gzip > %s',
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($user),
+                escapeshellarg($databaseName),
+                escapeshellarg($destinationPath)
+            );
+            $env = ['MYSQL_PWD' => $password];
+        }
 
-        $process = Process::fromShellCommandline($command, env: [
-            'PGPASSWORD' => $password,
-        ]);
+        $process = Process::fromShellCommandline($command, env: $env);
         $process->setTimeout(300);
         $process->run();
 
@@ -119,7 +131,7 @@ final class BackupService
         $results = [];
 
         if ($includeCentral) {
-            $centralDb = (string) config('database.connections.central.database', 'pgsql_central');
+            $centralDb = (string) config('database.connections.central.database', 'mysql_central');
             $dest = $targetDirectory !== null ? rtrim($targetDirectory, '/').'/central_'.$centralDb.'_'.Carbon::now()->format('Y-m-d_His').'.sql.gz' : null;
             $res = $this->backupDatabase($centralDb, $dest);
             $results[] = [
@@ -172,19 +184,31 @@ final class BackupService
         $port = (string) $config['port'];
         $user = (string) $config['username'];
         $password = (string) $config['password'];
+        $driver = $config['driver'];
 
-        $command = sprintf(
-            'gunzip -c %s | psql -h %s -p %s -U %s -d %s -v ON_ERROR_STOP=1',
-            escapeshellarg($backupFilePath),
-            escapeshellarg($host),
-            escapeshellarg($port),
-            escapeshellarg($user),
-            escapeshellarg($targetDatabaseName)
-        );
+        if ($driver === 'pgsql') {
+            $command = sprintf(
+                'gunzip -c %s | psql -h %s -p %s -U %s -d %s -v ON_ERROR_STOP=1',
+                escapeshellarg($backupFilePath),
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($user),
+                escapeshellarg($targetDatabaseName)
+            );
+            $env = ['PGPASSWORD' => $password];
+        } else {
+            $command = sprintf(
+                'gunzip -c %s | mysql -h %s -P %s -u %s --default-character-set=utf8mb4 %s',
+                escapeshellarg($backupFilePath),
+                escapeshellarg($host),
+                escapeshellarg($port),
+                escapeshellarg($user),
+                escapeshellarg($targetDatabaseName)
+            );
+            $env = ['MYSQL_PWD' => $password];
+        }
 
-        $process = Process::fromShellCommandline($command, env: [
-            'PGPASSWORD' => $password,
-        ]);
+        $process = Process::fromShellCommandline($command, env: $env);
         $process->setTimeout(300);
         $process->run();
 
@@ -255,8 +279,10 @@ final class BackupService
             );
             config(['database.connections.tenant_drill' => $drillConnectionConfig]);
 
+            $driver = (string) (config('database.connections.tenant.driver') ?? 'mysql');
+            $schemaFilter = $driver === 'pgsql' ? "'public'" : $this->db->connection('tenant_drill')->getPdo()->quote($drillDb);
             $tables = $this->db->connection('tenant_drill')->select(
-                "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = 'public'"
+                "SELECT count(*) as count FROM information_schema.tables WHERE table_schema = {$schemaFilter}"
             );
             $tableCount = isset($tables[0]->count) ? (int) $tables[0]->count : 0;
 
@@ -296,25 +322,39 @@ final class BackupService
     public function createDatabaseIfNotExists(string $databaseName): void
     {
         $this->assertValidDatabaseName($databaseName);
-        $pdo = $this->getAdminPdo();
+        $config = $this->resolveConnectionConfig();
+        $driver = $config['driver'];
 
-        $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
-        $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote($databaseName));
-        $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
+        if ($driver === 'pgsql') {
+            $pdo = $this->getAdminPdo();
+            $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
+            $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote($databaseName));
+            $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
 
-        if ($exists === 0) {
-            $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
-            $adminUser = (string) $this->resolveAdminUsername();
+            if ($exists === 0) {
+                $tenantUser = (string) config('database.connections.tenant.username', config('database.connections.central.username', ''));
+                $adminUser = (string) $this->resolveAdminUsername();
 
-            if ($tenantUser !== '' && $tenantUser !== $adminUser) {
-                try {
-                    $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
-                    $pdo->exec("CREATE DATABASE {$quotedName} OWNER {$quotedUser}");
-                } catch (Throwable) {
+                if ($tenantUser !== '' && $tenantUser !== $adminUser) {
+                    try {
+                        $quotedUser = '"'.str_replace('"', '""', $tenantUser).'"';
+                        $pdo->exec("CREATE DATABASE {$quotedName} OWNER {$quotedUser}");
+                    } catch (Throwable) {
+                        $pdo->exec("CREATE DATABASE {$quotedName}");
+                    }
+                } else {
                     $pdo->exec("CREATE DATABASE {$quotedName}");
                 }
-            } else {
-                $pdo->exec("CREATE DATABASE {$quotedName}");
+            }
+        } else {
+            $pdo = $this->getAdminPdo();
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = :dbname');
+            $stmt->execute(['dbname' => $databaseName]);
+            $exists = (int) $stmt->fetchColumn();
+
+            if ($exists === 0) {
+                $quotedName = '`'.str_replace('`', '``', $databaseName).'`';
+                $pdo->exec("CREATE DATABASE {$quotedName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             }
         }
     }
@@ -322,24 +362,38 @@ final class BackupService
     public function dropDatabaseIfExists(string $databaseName): void
     {
         $this->assertValidDatabaseName($databaseName);
-        $pdo = $this->getAdminPdo();
+        $config = $this->resolveConnectionConfig();
+        $driver = $config['driver'];
 
-        $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
-        $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote($databaseName));
-        $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
+        if ($driver === 'pgsql') {
+            $pdo = $this->getAdminPdo();
+            $quotedName = '"'.str_replace('"', '""', $databaseName).'"';
+            $stmt = $pdo->query('SELECT COUNT(*) FROM pg_database WHERE datname = '.$pdo->quote($databaseName));
+            $exists = $stmt !== false ? (int) $stmt->fetchColumn() : 0;
 
-        if ($exists > 0) {
-            // Terminate open connections before dropping
-            try {
-                $pdo->exec(sprintf(
-                    'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()',
-                    $pdo->quote($databaseName)
-                ));
-            } catch (Throwable) {
-                // Ignore termination errors if no active connections
+            if ($exists > 0) {
+                // Terminate open connections before dropping
+                try {
+                    $pdo->exec(sprintf(
+                        'SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = %s AND pid <> pg_backend_pid()',
+                        $pdo->quote($databaseName)
+                    ));
+                } catch (Throwable) {
+                    // Ignore termination errors if no active connections
+                }
+
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
             }
+        } else {
+            $pdo = $this->getAdminPdo();
+            $stmt = $pdo->prepare('SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = :dbname');
+            $stmt->execute(['dbname' => $databaseName]);
+            $exists = (int) $stmt->fetchColumn();
 
-            $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            if ($exists > 0) {
+                $quotedName = '`'.str_replace('`', '``', $databaseName).'`';
+                $pdo->exec("DROP DATABASE IF EXISTS {$quotedName}");
+            }
         }
     }
 
@@ -351,20 +405,26 @@ final class BackupService
     }
 
     /**
-     * @return array{host: string, port: int|string, username: string, password: string}
+     * @return array{driver: string, host: string, port: int|string, username: string, password: string}
      */
     private function resolveConnectionConfig(): array
     {
-        /** @var array{host?: string, port?: int|string, username?: string, password?: string} $tenantConfig */
+        /** @var array{driver?: string, host?: string, port?: int|string, username?: string, password?: string} $tenantConfig */
         $tenantConfig = (array) config('database.connections.tenant');
-        /** @var array{host?: string, port?: int|string, username?: string, password?: string} $centralConfig */
+        /** @var array{driver?: string, host?: string, port?: int|string, username?: string, password?: string} $centralConfig */
         $centralConfig = (array) config('database.connections.central');
 
+        $driver = (string) ($tenantConfig['driver'] ?? $centralConfig['driver'] ?? 'mysql');
+        $defaultPort = $driver === 'pgsql' ? '5432' : '3306';
+        $defaultHost = $driver === 'pgsql' ? 'postgres' : 'mysql';
+        $defaultUser = $driver === 'pgsql' ? 'postgres' : 'root';
+
         return [
-            'host' => (string) ($tenantConfig['host'] ?? $centralConfig['host'] ?? 'postgres'),
-            'port' => (string) ($tenantConfig['port'] ?? $centralConfig['port'] ?? '5432'),
-            'username' => (string) ($tenantConfig['username'] ?? $centralConfig['username'] ?? 'postgres'),
-            'password' => (string) ($tenantConfig['password'] ?? $centralConfig['password'] ?? 'postgres'),
+            'driver' => $driver,
+            'host' => (string) ($tenantConfig['host'] ?? $centralConfig['host'] ?? $defaultHost),
+            'port' => (string) ($tenantConfig['port'] ?? $centralConfig['port'] ?? $defaultPort),
+            'username' => (string) ($tenantConfig['username'] ?? $centralConfig['username'] ?? $defaultUser),
+            'password' => (string) ($tenantConfig['password'] ?? $centralConfig['password'] ?? ''),
         ];
     }
 
@@ -378,12 +438,19 @@ final class BackupService
 
     private function getAdminPdo(): PDO
     {
-        /** @var array{host: string, port: int|string, username: string, password: string, database?: string} $config */
+        /** @var array{driver?: string, host: string, port: int|string, username: string, password: string, database?: string} $config */
         $config = (array) (config('database.connections.provisioner') ?: config('database.connections.central'));
-        $systemDb = $config['database'] ?? 'postgres';
+        $driver = (string) ($config['driver'] ?? 'mysql');
+
+        if ($driver === 'pgsql') {
+            $systemDb = $config['database'] ?? 'postgres';
+            $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $systemDb);
+        } else {
+            $dsn = sprintf('mysql:host=%s;port=%s', $config['host'], $config['port']);
+        }
 
         $pdo = new PDO(
-            dsn: sprintf('pgsql:host=%s;port=%s;dbname=%s', $config['host'], $config['port'], $systemDb),
+            dsn: $dsn,
             username: (string) $config['username'],
             password: (string) $config['password'],
         );

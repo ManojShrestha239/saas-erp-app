@@ -24,7 +24,7 @@ final class RestoreTenantDatabaseCommand extends Command
      *
      * @var string
      */
-    protected $description = 'Restore a compressed .sql.gz backup archive into a target PostgreSQL database';
+    protected $description = 'Restore a compressed .sql.gz backup archive into a target database';
 
     public function handle(BackupService $backupService): int
     {
