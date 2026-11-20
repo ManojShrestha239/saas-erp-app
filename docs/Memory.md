@@ -77,6 +77,7 @@
 | 55  | Multi-Tenant Disaster Recovery, Process Supervision & Production Container Architecture (`feat/backups-restore-production-docker`): Multi-tenant backup engine in `Modules\Tenancy\Services\BackupService` using `pg_dump` and `gunzip | psql` pipelines with `PGPASSWORD` isolation and strict alphanumeric database name assertion. Automated disaster recovery restore drill (`tenants:restore-drill`) dumps live tenant, provisions ephemeral drill database (`tenant_drill_*`), restores tables, verifies schema integrity, and cleanly destroys drill DB in under 300 ms. Production multi-stage `Dockerfile` (Node 22 asset compilation, Composer `--no-dev --optimize-autoloader`, PHP 8.4-FPM with OPcache timestamps disabled). Process supervision via `supervisord` managing PHP-FPM, Horizon queue workers (`default`, `reports`, `notifications`), and 60-second scheduler runner. Production Nginx proxy with TLS 1.3, security headers, and 1-year immutable caching on `/build/`. Diagnostic health probe `GET /api/v1/health` verifying central DB, Redis, storage, OPcache, and production debug/telescope gating. | Guarantees verifiable RTO/RPO disaster recovery compliance without third-party vendor lock-in; provides reproducible containerized production deployments with background worker reliability and production performance optimizations. |
 | 56  | Full Playwright E2E Test Suite for PRD §5 Core Commercial Flows (`feat/playwright-prd-flows`): End-to-end tests in `e2e/*.spec.ts` covering the five core user journeys of PRD §5: (1) Tenant signup, database provisioning, and owner login; (2) Warehouse manager adds product, receives stock via PO, and inspects on-hand stock; (3) Sales rep creates invoice, posts to GL with atomic stock decrement, and downloads vector PDF; (4) Customer pays, receipt is allocated against invoice, invoice marked paid, AR aging verified; (5) Accountant runs statutory VAT return with GL reconciliation, verifies double-entry Trial Balance equilibrium ($net\_diff = 0.00$), and inspects P&L statement. Configured `playwright.config.ts` targeting `http://*.localhost:8000` with sequential execution (`workers: 1`), test helpers in `e2e/helpers/auth.ts`, SSE stream mock interceptor (`/api/v1/stream`), increased PHP-FPM worker concurrency (`pm.max_children = 25`), CSP local Vite whitelist, and sanitized boolean query parameter filtering in `FinancialReportController`. Integrated Playwright execution into `scripts/ci.sh`. | Provides automated regression protection across all core user journeys; guarantees frontend and backend integration reliability under real browser and multi-tenant conditions. |
 | 57  | Tenant Settings Hub & Operational Policy Configuration (`fix/tenant-settings-page-and-routes`): Built dedicated Settings model (`Modules\Auth\Models\Setting` with `UsesTenantConnection`), `TenantSettingsService` providing typed dictionary caching/mapping, form request `UpdateTenantSettingsRequest` validating ISO currency, MM-DD fiscal year start, and date formats, and `TenantSettingsController` handling both Inertia (`/settings`) and JSON API (`/api/v1/settings`). Web and API routes are secured by `TenantPermission::SettingsManage`. Organized across 4 domain tabs: Company Profile (legal name, tax ID, email, phone, address, bank details), Financial & Localization (base currency, timezone, date format, fiscal year start), Inventory Policies (negative stock balance permission, default low-stock reorder threshold), and Document Sequences (invoice, bill, quotation, PO prefixes). Reusable frontend interface in `frontend/src/features/settings/` with full Vitest component coverage and automated Pest feature tests verifying multi-tenant isolation. | Resolves 404 on `/settings` navigation link; provides tenant owners centralized operational controls; enforces strict multi-tenant database isolation without cross-tenant leakage. |
+| 58  | Anti-AI Design & Craftsmanship Architecture (`feat/public-marketing-and-anti-ai-design`): Implemented central public marketing website (`public/LandingPage`) and upgraded ERP UI primitives (`accordion.tsx`, `sheet.tsx`, `skeleton.tsx`, `input.tsx`) strictly enforcing Anti-AI craftsmanship rules. Banned purple/neon gradients, repetitive 3-column bento grids, and dark-mode slate defaults; anchored surfaces in crisp off-white (`#F5F0E9`), sapphire borders (`#325070`), and quicksand gold (`#E0C58F`). Configured geometric display font (*Plus Jakarta Sans*), neutral UI sans (*Inter*), and tabular monospace (*JetBrains Mono*). Enforced domain-authentic ERP copywriting with strict exclusion of AI buzzwords. Implemented dual motion timing architecture (300–600ms smooth cubic-bezier for marketing, 150–250ms snappy ease-out for ERP dashboards) with `@media (prefers-reduced-motion: reduce)` accessibility overrides. | Replaces legacy Laravel welcome view with a production-grade, white-label friendly marketing & sandbox provisioning experience; enforces high-density craftsmanship and accessibility standards across all multi-tenant surfaces. |
 
 ## Conventions Locked In
 
@@ -102,18 +103,34 @@
 
 ## Key Files Touched (latest)
 
-- `backend/Modules/Auth/Models/Setting.php`
-- `backend/Modules/Auth/Services/TenantSettingsService.php`
-- `backend/Modules/Auth/Http/Requests/UpdateTenantSettingsRequest.php`
-- `backend/Modules/Auth/Http/Controllers/TenantSettingsController.php`
-- `backend/Modules/Auth/Routes/web.php`
-- `backend/Modules/Auth/Routes/api.php`
-- `frontend/src/features/settings/pages/SettingsIndex.tsx`
-- `frontend/src/features/settings/pages/__tests__/SettingsIndex.test.tsx`
-- `backend/tests/Feature/Auth/TenantSettingsTest.php`
+- `backend/resources/views/app.blade.php`
+- `backend/routes/web.php`
+- `backend/tests/Feature/Central/LandingPageTest.php`
+- `frontend/src/app.css`
+- `frontend/src/components/ui/accordion.tsx`
+- `frontend/src/components/ui/sheet.tsx`
+- `frontend/src/components/ui/skeleton.tsx`
+- `frontend/src/components/ui/input.tsx`
+- `frontend/src/components/ui/__tests__/accordion.test.tsx`
+- `frontend/src/components/ui/__tests__/sheet.test.tsx`
+- `frontend/src/components/ui/__tests__/skeleton.test.tsx`
+- `frontend/src/features/public/pages/LandingPage.tsx`
+- `frontend/src/features/public/pages/__tests__/LandingPage.test.tsx`
+- `frontend/src/features/public/components/PublicNavbar.tsx`
+- `frontend/src/features/public/components/HeroSection.tsx`
+- `frontend/src/features/public/components/LedgerPreviewCard.tsx`
+- `frontend/src/features/public/components/OperationalPillars.tsx`
+- `frontend/src/features/public/components/WorkflowSimulator.tsx`
+- `frontend/src/features/public/components/ProofDataTable.tsx`
+- `frontend/src/features/public/components/TierMatrix.tsx`
+- `frontend/src/features/public/components/FaqAccordion.tsx`
+- `frontend/src/features/public/components/PublicFooter.tsx`
+- `frontend/src/features/public/components/DemoRequestModal.tsx`
 - `docs/Memory.md`
 
 ## Session Log (newest first)
+
+- `2026-11-18`: `feat/public-marketing-and-anti-ai-design`: Upgraded design architecture and built production-grade central SaaS marketing surface in `frontend/src/features/public/` strictly adhering to Anti-AI Design & Craftsmanship rules. Enforced geometric display font (*Plus Jakarta Sans*), neutral UI sans (*Inter*), and tabular monospace (*JetBrains Mono*). Defined dual-speed motion architecture (300–600ms smooth cubic-bezier for marketing, 150–250ms snappy ease-out for ERP dashboards, shimmer skeletons, form shake on error) with `@media (prefers-reduced-motion: reduce)`. Built high-density interactive components: `HeroSection` with left-aligned display hierarchy, `LedgerPreviewCard` with atomic double-entry balance verification, `OperationalPillars` with asymmetric 2-column splits, `WorkflowSimulator` covering 6 transactional stages, `ProofDataTable` comparing architectural invariants, `TierMatrix` with operational quotas, `FaqAccordion` with WAI-ARIA accessibility, and `DemoRequestModal` with multi-step database provisioning simulation. Connected central route `GET /` to render `public/LandingPage` via Inertia. Added comprehensive test coverage: 14 new frontend tests (119 total across 27 files) passing in Vitest, 0 TypeScript errors, 0 ESLint errors, Vite build in 1.34s, and Pest test asserting central landing page Inertia response. Decision #58 recorded.
 
 - `2026-11-13`: `fix/tenant-settings-page-and-routes`: Resolved 404 on `/settings` navigation link by implementing full multi-tenant settings stack. Created `Setting` model with `UsesTenantConnection`, `TenantSettingsService` providing type-cast setting dictionaries, `UpdateTenantSettingsRequest` enforcing ISO currency, MM-DD fiscal date format, and sequence prefix validation, and `TenantSettingsController` handling both Inertia page rendering (`/settings`) and JSON API endpoints (`GET /api/v1/settings`, `PUT /api/v1/settings`) guarded by `TenantPermission::SettingsManage`. Built high-density frontend hub in `frontend/src/features/settings/` organized into 4 domain tabs (Company Profile, Financial & Localization, Inventory Policies, Document Sequences). Verified 100% CI compliance: Pint (579 files clean), Larastan Level 8 (0 errors across 484 files), Pest (66 Auth tests + 14 Arch tests clean), Vitest (105 tests passed across 23 files), TypeScript typecheck, ESLint, and Vite production build. Decision #57 recorded.
 

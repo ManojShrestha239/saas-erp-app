@@ -3,10 +3,11 @@ import { cn } from '@/shared/utils/cn';
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   error?: boolean;
+  shake?: boolean;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = 'text', error, ...props }, ref) => {
+  ({ className, type = 'text', error, shake, ...props }, ref) => {
     return (
       <input
         type={type}
@@ -19,6 +20,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           error
             ? 'border-destructive focus-visible:ring-destructive'
             : 'border-input hover:border-muted-foreground/50',
+          shake && 'animate-shake',
           className
         )}
         ref={ref}
